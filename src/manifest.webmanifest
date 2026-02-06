@@ -1,0 +1,22 @@
+{
+  "name": "读者之旅 Reader’s Journey",
+  "short_name": "读者之旅",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f2e8d2",
+  "theme_color": "#0f1c1a",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

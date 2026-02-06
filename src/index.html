@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>读者之旅 Reader’s Journey</title>
+    <meta name="description" content="把阅读变成一场冒险的 RPG 成长之旅。" />
+    <meta name="theme-color" content="#0f1c1a" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="hero">
+        <div class="hero-title">
+          <p class="hero-kicker">Reader’s Journey</p>
+          <h1>读者之旅</h1>
+          <p class="hero-subtitle">
+            把阅读变成一场冒险。即时反馈属性点与技能，轻量而有仪式感。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <div class="hero-pill">用完即走</div>
+          <div class="hero-pill">成长可视化</div>
+          <div class="hero-pill">购书闭环</div>
+        </div>
+        <nav class="hero-nav">
+          <a href="#entry">录入页</a>
+          <a href="#progress">进度页</a>
+          <a href="#panel">面板页</a>
+          <a href="#next">下一本推荐</a>
+          <a href="#share">分享页</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="screens">
+          <article id="entry" class="screen" style="--delay: 0s">
+            <header class="screen-header">
+              <span>录入页</span>
+              <strong>把书单装进背包</strong>
+            </header>
+            <div class="screen-body">
+              <label class="field">
+                <span>书名 / 作者 / 关键词</span>
+                <input id="entry-search-input" type="text" placeholder="例如：思考，快与慢 / 丹尼尔·卡尼曼" />
+              </label>
+              <label class="field">
+                <span>ISBN 编号</span>
+                <input id="entry-isbn-input" type="text" placeholder="978-7-XXXX-XXXX-X" />
+              </label>
+              <label class="field">
+                <span>手动补充</span>
+                <textarea
+                  id="entry-manual-input"
+                  placeholder="可填：分类（逻辑/心理/战略/文学...）或页数（例如 320页）"
+                ></textarea>
+              </label>
+              <div class="entry-meta">
+                <div>
+                  <p>历史导入</p>
+                  <span>前 10 本 100%，10-50 本 70%</span>
+                </div>
+                <div>
+                  <p>今日节奏</p>
+                  <span>第 1 本 100%，第 2 本 80%</span>
+                </div>
+              </div>
+              <div class="entry-list" id="history-list"></div>
+              <p id="entry-feedback" class="entry-feedback" aria-live="polite"></p>
+              <button id="entry-next-btn" class="btn-primary">录入书籍</button>
+            </div>
+          </article>
+
+          <article id="progress" class="screen" style="--delay: 0.1s">
+            <header class="screen-header">
+              <span>进度页</span>
+              <strong>即时奖励反馈</strong>
+            </header>
+            <div class="screen-body">
+              <div class="book-card">
+                <div class="book-cover">封面</div>
+                <div>
+                  <h3 id="progress-title">思考，快与慢</h3>
+                  <p id="progress-author">丹尼尔·卡尼曼</p>
+                </div>
+              </div>
+              <div class="progress-block">
+                <div class="progress-head">
+                  <span>阅读进度</span>
+                  <strong id="progress-percent">72%</strong>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <input type="range" min="0" max="100" value="72" id="progress-range" />
+                <p class="progress-page">已读 <span id="progress-page">306</span> 页</p>
+              </div>
+              <div class="reward-grid" id="reward-grid"></div>
+              <div class="skill-row" id="progress-skills"></div>
+              <button id="progress-update-btn" class="btn-primary">更新进度</button>
+            </div>
+          </article>
+
+          <article id="panel" class="screen" style="--delay: 0.2s">
+            <header class="screen-header">
+              <span>面板页</span>
+              <strong>角色面板</strong>
+            </header>
+            <div class="screen-body">
+              <div class="panel-top">
+                <div>
+                  <h3 id="panel-nickname">昵称：旅者001</h3>
+                  <p id="panel-level-line">Lv. 1 · 经验值 0</p>
+                </div>
+                <div class="avatar">头像</div>
+              </div>
+              <div class="stat-list" id="stat-list"></div>
+              <div class="panel-section">
+                <h4>技能树</h4>
+                <div class="skill-row" id="panel-skills"></div>
+              </div>
+              <div class="tree-grid">
+                <div class="tree-node"></div>
+                <div class="tree-node"></div>
+                <div class="tree-node"></div>
+                <div class="tree-node"></div>
+                <div class="tree-node"></div>
+              </div>
+            </div>
+          </article>
+
+          <article id="next" class="screen" style="--delay: 0.3s">
+            <header class="screen-header">
+              <span>下一本推荐</span>
+              <strong>完成后将解锁</strong>
+            </header>
+            <div class="screen-body">
+              <div class="recommend-card">
+                <div class="recommend-cover">推荐封面</div>
+                <div>
+                  <h3 id="recommend-title">原则</h3>
+                  <p id="recommend-author">瑞·达利欧</p>
+                  <p class="recommend-reward" id="recommend-reward">完成后获得 +8 属性</p>
+                </div>
+                <button id="recommend-buy-btn" class="btn-primary">购书</button>
+              </div>
+              <div class="plan-list" id="plan-list"></div>
+              <div class="panel-section">
+                <h4>潜在技能</h4>
+                <div class="skill-row" id="plan-skills"></div>
+              </div>
+              <div class="buy-links">
+                <button id="buy-dangdang-btn" class="btn-outline">当当</button>
+                <button id="buy-jd-btn" class="btn-outline">京东</button>
+              </div>
+            </div>
+          </article>
+
+          <article id="share" class="screen" style="--delay: 0.4s">
+            <header class="screen-header">
+              <span>分享页</span>
+              <strong>角色卡片海报</strong>
+            </header>
+            <div class="screen-body">
+              <div class="share-card">
+                <div class="share-banner">卡片背景</div>
+                <div class="share-info">
+                  <div>
+                    <h3>读者之旅</h3>
+                    <p id="share-summary">昵称：旅者001 · Lv. 1</p>
+                  </div>
+                  <div class="qr">二维码</div>
+                </div>
+                <div class="attribute-grid" id="share-attributes"></div>
+              </div>
+              <div class="achievement-grid" id="achievement-grid"></div>
+              <div class="invite-row">
+                <span id="invite-code">邀请码 RJ-2026</span>
+                <button id="copy-invite-btn" class="btn-outline">复制</button>
+              </div>
+              <p id="share-feedback" class="entry-feedback" aria-live="polite"></p>
+              <button id="share-btn" class="btn-primary">分享</button>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <section class="assistant">
+        <div>
+          <p class="assistant-kicker">AI 书童助手</p>
+          <h2>哲学王 · 书籍引路人</h2>
+          <p>回答阅读问题、追踪进度、推荐下一本。只在你需要时出现。</p>
+        </div>
+        <div class="assistant-card">
+          <p>“你的洞察力提升了。下一本可以尝试哲学类，解锁【洞察力+5】。”</p>
+          <span>书童建议 · 即时反馈</span>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div>
+          <h3>把阅读，变成一场冒险。</h3>
+          <p>Turn reading into an adventure.</p>
+        </div>
+        <div class="footer-meta">
+          <span>轻量化 · 低频使用 · 长周期成长</span>
+          <span>Reader’s Journey MVP</span>
+        </div>
+      </footer>
+    </div>
+
+    <script type="module" src="./app.mjs"></script>
+  </body>
+</html>
