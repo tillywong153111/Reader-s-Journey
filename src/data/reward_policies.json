@@ -1,0 +1,30 @@
+{
+  "schema": "reward_policies.v1",
+  "entry": {
+    "base_points": 8,
+    "new_book_multiplier": 1.5,
+    "custom_entry_multiplier": 0.7,
+    "historical_weights": [
+      { "max_inclusive": 10, "weight": 1 },
+      { "max_inclusive": 50, "weight": 0.7 },
+      { "max_inclusive": null, "weight": 0.3 }
+    ],
+    "daily_weights": [
+      { "max_inclusive": 1, "weight": 1 },
+      { "max_inclusive": 2, "weight": 0.8 },
+      { "max_inclusive": null, "weight": 0.5 }
+    ]
+  },
+  "growth": {
+    "book_count_curves": [
+      { "max_inclusive": 50, "base_gain": 10 },
+      { "max_inclusive": 100, "base_gain": 6 },
+      { "max_inclusive": null, "base_gain": 3 }
+    ]
+  },
+  "level": {
+    "base": 100,
+    "power": 1.25,
+    "finish_bonus_exp": 25
+  }
+}

@@ -8,6 +8,12 @@
     "lint": "node scripts/lint.mjs",
     "test": "node --test",
     "build": "node scripts/build.mjs",
-    "preview": "node scripts/preview.mjs"
+    "preview": "node scripts/preview.mjs",
+    "data:fetch": "node scripts/fetch-catalog.mjs",
+    "data:build-modules": "node scripts/build-data-modules.mjs",
+    "data:verify": "node scripts/verify-catalog.mjs",
+    "data:verify:full": "FULL_VERIFY=1 node scripts/verify-catalog.mjs",
+    "assets:audio": "node scripts/generate-audio-assets.mjs",
+    "data:refresh": "node scripts/fetch-catalog.mjs && node scripts/build-data-modules.mjs && node scripts/verify-catalog.mjs"
   }
 }

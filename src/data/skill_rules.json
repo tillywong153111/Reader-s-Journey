@@ -1,0 +1,36 @@
+{
+  "schema": "skill_rules.v1",
+  "rules": [
+    {
+      "skill_id": "critical-thinking",
+      "name": "批判性思维 Lv.1",
+      "description": "完成 3 本逻辑类书籍后解锁",
+      "condition": { "type": "category_count", "category": "logic", "count": 3 },
+      "effect": { "logic": 5 }
+    },
+    {
+      "skill_id": "bias-detection",
+      "name": "认知偏差识别",
+      "description": "完成 5 本心理学书籍后解锁",
+      "condition": { "type": "category_count", "category": "psychology", "count": 5 },
+      "effect": { "insight": 5 }
+    },
+    {
+      "skill_id": "game-theory",
+      "name": "博弈论应用",
+      "description": "完成 10 本战略类书籍后解锁",
+      "condition": { "type": "category_count", "category": "strategy", "count": 10 },
+      "effect": { "strategy": 6 }
+    },
+    {
+      "skill_id": "machiavellian",
+      "name": "权谋心法",
+      "description": "完成《君主论》或 The Prince 后触发彩蛋技能",
+      "condition": {
+        "type": "special_title_any",
+        "titles": ["君主论", "The Prince"]
+      },
+      "effect": { "strategy": 8, "insight": 4 }
+    }
+  ]
+}

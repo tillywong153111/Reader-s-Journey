@@ -1,0 +1,9 @@
+{
+  "schema": "achievement_rules.v1",
+  "rules": [
+    { "threshold": 10, "name": "十书行者", "title": "青铜读者" },
+    { "threshold": 50, "name": "五十书者", "title": "白银读者" },
+    { "threshold": 100, "name": "百书战士", "title": "黄金读者" },
+    { "threshold": 200, "name": "二百书宗师", "title": "传奇读者" }
+  ]
+}

@@ -2,219 +2,236 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>读者之旅 Reader’s Journey</title>
-    <meta name="description" content="把阅读变成一场冒险的 RPG 成长之旅。" />
-    <meta name="theme-color" content="#0f1c1a" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>读者之旅 Reader's Journey</title>
+    <meta name="description" content="离线阅读成长应用：录入、进度、面板、分享、设置。" />
+    <meta name="theme-color" content="#f8f8fa" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app">
-      <header class="hero">
-        <div class="hero-title">
-          <p class="hero-kicker">Reader’s Journey</p>
-          <h1>读者之旅</h1>
-          <p class="hero-subtitle">
-            把阅读变成一场冒险。即时反馈属性点与技能，轻量而有仪式感。
-          </p>
-        </div>
-        <div class="hero-actions">
-          <div class="hero-pill">用完即走</div>
-          <div class="hero-pill">成长可视化</div>
-          <div class="hero-pill">购书闭环</div>
-        </div>
-        <nav class="hero-nav">
-          <a href="#entry">录入页</a>
-          <a href="#progress">进度页</a>
-          <a href="#panel">面板页</a>
-          <a href="#next">下一本推荐</a>
-          <a href="#share">分享页</a>
-        </nav>
+    <div class="shell">
+      <header class="app-header">
+        <p class="app-kicker">Reader's Journey</p>
+        <h1 id="app-page-title">录入</h1>
+        <p id="app-page-subtitle">搜索并选择一本书加入旅程</p>
       </header>
 
-      <main>
-        <section class="screens">
-          <article id="entry" class="screen" style="--delay: 0s">
-            <header class="screen-header">
-              <span>录入页</span>
-              <strong>把书单装进背包</strong>
-            </header>
-            <div class="screen-body">
-              <label class="field">
-                <span>书名 / 作者 / 关键词</span>
-                <input id="entry-search-input" type="text" placeholder="例如：思考，快与慢 / 丹尼尔·卡尼曼" />
+      <main class="app-main">
+        <section
+          class="view entry-view active"
+          data-view="entry"
+          data-title="录入"
+          data-subtitle="搜索并选择一本书加入旅程"
+        >
+          <article class="card entry-main-card">
+            <h2>离线书库搜索</h2>
+            <label>
+              搜索书名 / 作者 / ISBN
+              <input id="entry-search-input" type="text" placeholder="例如：思考，快与慢" />
+            </label>
+            <div id="entry-search-results" class="search-results"></div>
+            <div class="inline-actions">
+              <button id="entry-search-more-btn" class="btn-ghost" type="button">查看更多结果</button>
+              <button id="entry-custom-mode-btn" class="btn-secondary" type="button">自编录入</button>
+            </div>
+            <div id="entry-selected-book" class="selection-card"></div>
+            <div id="entry-custom-fields" class="field-grid two hidden">
+              <label>
+                书名
+                <input id="entry-title-input" type="text" placeholder="自编书名" />
               </label>
-              <label class="field">
-                <span>ISBN 编号</span>
-                <input id="entry-isbn-input" type="text" placeholder="978-7-XXXX-XXXX-X" />
+              <label>
+                作者
+                <input id="entry-author-input" type="text" placeholder="作者（可选）" />
               </label>
-              <label class="field">
-                <span>手动补充</span>
-                <textarea
-                  id="entry-manual-input"
-                  placeholder="可填：分类（逻辑/心理/战略/文学...）或页数（例如 320页）"
-                ></textarea>
+              <label>
+                ISBN（可选）
+                <input id="entry-isbn-input" type="text" placeholder="978..." />
               </label>
-              <div class="entry-meta">
-                <div>
-                  <p>历史导入</p>
-                  <span>前 10 本 100%，10-50 本 70%</span>
-                </div>
-                <div>
-                  <p>今日节奏</p>
-                  <span>第 1 本 100%，第 2 本 80%</span>
-                </div>
-              </div>
-              <div class="entry-list" id="history-list"></div>
-              <p id="entry-feedback" class="entry-feedback" aria-live="polite"></p>
-              <button id="entry-next-btn" class="btn-primary">录入书籍</button>
+              <label>
+                页数
+                <input id="entry-pages-input" type="number" min="1" max="4000" value="320" />
+              </label>
             </div>
+            <label>
+              分类（必选）
+              <select id="entry-category-select">
+                <option value="">请选择分类</option>
+                <option value="logic">逻辑</option>
+                <option value="psychology">心理学</option>
+                <option value="strategy">战略</option>
+                <option value="literature">文学</option>
+                <option value="creativity">创造</option>
+                <option value="philosophy">哲学</option>
+                <option value="general">通识</option>
+              </select>
+            </label>
+            <button id="entry-add-btn" class="btn-primary" type="button">录入并结算</button>
+            <p id="entry-mode-hint" class="tip"></p>
+            <p id="entry-feedback" class="feedback" aria-live="polite"></p>
           </article>
 
-          <article id="progress" class="screen" style="--delay: 0.1s">
-            <header class="screen-header">
-              <span>进度页</span>
-              <strong>即时奖励反馈</strong>
-            </header>
-            <div class="screen-body">
-              <div class="book-card">
-                <div class="book-cover">封面</div>
-                <div>
-                  <h3 id="progress-title">思考，快与慢</h3>
-                  <p id="progress-author">丹尼尔·卡尼曼</p>
-                </div>
-              </div>
-              <div class="progress-block">
-                <div class="progress-head">
-                  <span>阅读进度</span>
-                  <strong id="progress-percent">72%</strong>
-                </div>
-                <div class="progress-bar">
-                  <div class="progress-fill" id="progress-fill"></div>
-                </div>
-                <input type="range" min="0" max="100" value="72" id="progress-range" />
-                <p class="progress-page">已读 <span id="progress-page">306</span> 页</p>
-              </div>
-              <div class="reward-grid" id="reward-grid"></div>
-              <div class="skill-row" id="progress-skills"></div>
-              <button id="progress-update-btn" class="btn-primary">更新进度</button>
+          <article class="card mini-card">
+            <div class="card-head">
+              <h2>正在阅读（3本为宜，不可贪多哦~）</h2>
+              <button id="entry-books-more-btn" class="text-btn" type="button">查看全部</button>
             </div>
+            <div id="entry-book-list" class="stack-list compact"></div>
+          </article>
+        </section>
+
+        <section
+          class="view progress-view"
+          data-view="progress"
+          data-title="进度"
+          data-subtitle="更新一本书的阅读进度并获得即时奖励"
+        >
+          <article class="card progress-main-card">
+            <h2>进度更新</h2>
+            <label>
+              选择书籍
+              <select id="progress-book-select"></select>
+            </label>
+            <p id="progress-book-meta" class="tip"></p>
+            <div class="progress-header">
+              <span>阅读进度</span>
+              <strong id="progress-percent">0%</strong>
+            </div>
+            <input id="progress-range" type="range" min="0" max="100" value="0" />
+            <p class="tip">已读 <span id="progress-pages">0</span> 页</p>
+            <div id="progress-reward-list" class="reward-grid"></div>
+            <button id="progress-update-btn" class="btn-primary" type="button">更新并结算</button>
           </article>
 
-          <article id="panel" class="screen" style="--delay: 0.2s">
-            <header class="screen-header">
-              <span>面板页</span>
-              <strong>角色面板</strong>
-            </header>
-            <div class="screen-body">
-              <div class="panel-top">
-                <div>
-                  <h3 id="panel-nickname">昵称：旅者001</h3>
-                  <p id="panel-level-line">Lv. 1 · 经验值 0</p>
-                </div>
-                <div class="avatar">头像</div>
-              </div>
-              <div class="stat-list" id="stat-list"></div>
-              <div class="panel-section">
-                <h4>技能树</h4>
-                <div class="skill-row" id="panel-skills"></div>
-              </div>
-              <div class="tree-grid">
-                <div class="tree-node"></div>
-                <div class="tree-node"></div>
-                <div class="tree-node"></div>
-                <div class="tree-node"></div>
-                <div class="tree-node"></div>
-              </div>
+          <article class="card mini-card">
+            <div class="card-head">
+              <h2>技能摘要（最多3项）</h2>
+              <button id="progress-skills-more-btn" class="text-btn" type="button">查看全部</button>
             </div>
+            <div id="progress-skill-list" class="chip-list"></div>
+          </article>
+        </section>
+
+        <section
+          class="view panel-view"
+          data-view="panel"
+          data-title="面板"
+          data-subtitle="属性、等级、技能与成就总览"
+        >
+          <article class="card panel-main-card">
+            <h2>角色状态</h2>
+            <p id="panel-level-line"></p>
+            <div id="panel-attribute-list" class="attribute-list"></div>
           </article>
 
-          <article id="next" class="screen" style="--delay: 0.3s">
-            <header class="screen-header">
-              <span>下一本推荐</span>
-              <strong>完成后将解锁</strong>
-            </header>
-            <div class="screen-body">
-              <div class="recommend-card">
-                <div class="recommend-cover">推荐封面</div>
-                <div>
-                  <h3 id="recommend-title">原则</h3>
-                  <p id="recommend-author">瑞·达利欧</p>
-                  <p class="recommend-reward" id="recommend-reward">完成后获得 +8 属性</p>
-                </div>
-                <button id="recommend-buy-btn" class="btn-primary">购书</button>
-              </div>
-              <div class="plan-list" id="plan-list"></div>
-              <div class="panel-section">
-                <h4>潜在技能</h4>
-                <div class="skill-row" id="plan-skills"></div>
-              </div>
-              <div class="buy-links">
-                <button id="buy-dangdang-btn" class="btn-outline">当当</button>
-                <button id="buy-jd-btn" class="btn-outline">京东</button>
+          <article class="card mini-card">
+            <div class="card-head">
+              <h2>技能与成就摘要</h2>
+              <div class="head-actions">
+                <button id="panel-skills-more-btn" class="text-btn" type="button">技能</button>
+                <button id="panel-achievements-more-btn" class="text-btn" type="button">成就</button>
               </div>
             </div>
+            <div id="panel-skill-list" class="chip-list"></div>
+            <div id="panel-achievement-list" class="chip-list"></div>
           </article>
+        </section>
 
-          <article id="share" class="screen" style="--delay: 0.4s">
-            <header class="screen-header">
-              <span>分享页</span>
-              <strong>角色卡片海报</strong>
-            </header>
-            <div class="screen-body">
-              <div class="share-card">
-                <div class="share-banner">卡片背景</div>
-                <div class="share-info">
-                  <div>
-                    <h3>读者之旅</h3>
-                    <p id="share-summary">昵称：旅者001 · Lv. 1</p>
-                  </div>
-                  <div class="qr">二维码</div>
-                </div>
-                <div class="attribute-grid" id="share-attributes"></div>
-              </div>
-              <div class="achievement-grid" id="achievement-grid"></div>
-              <div class="invite-row">
-                <span id="invite-code">邀请码 RJ-2026</span>
-                <button id="copy-invite-btn" class="btn-outline">复制</button>
-              </div>
-              <p id="share-feedback" class="entry-feedback" aria-live="polite"></p>
-              <button id="share-btn" class="btn-primary">分享</button>
+        <section
+          class="view share-view"
+          data-view="share"
+          data-title="分享"
+          data-subtitle="生成一屏角色卡并复制分享文案"
+        >
+          <article class="card share-main-card">
+            <h2>角色卡</h2>
+            <label>
+              昵称
+              <input id="share-nickname-input" type="text" maxlength="24" placeholder="输入你的昵称" />
+            </label>
+            <div class="share-card">
+              <h3 id="share-card-name">旅者001</h3>
+              <p id="share-card-level"></p>
+              <p id="share-card-attrs"></p>
+              <p id="share-card-skills"></p>
+              <p id="share-card-invite"></p>
+            </div>
+            <div class="inline-actions">
+              <button id="share-copy-invite-btn" class="btn-secondary" type="button">复制邀请码</button>
+              <button id="share-copy-btn" class="btn-primary" type="button">复制分享文案</button>
+            </div>
+            <p id="share-feedback" class="feedback" aria-live="polite"></p>
+          </article>
+        </section>
+
+        <section
+          class="view settings-view"
+          data-view="settings"
+          data-title="设置"
+          data-subtitle="隐私、数据与版本信息"
+        >
+          <article class="card settings-main-card">
+            <h2>隐私与数据</h2>
+            <p class="tip strong">数据仅保存在本机，不会自动上传到云端。</p>
+            <p id="settings-storage-status" class="tip"></p>
+            <p id="settings-last-saved" class="tip"></p>
+            <p id="settings-catalog-meta" class="tip"></p>
+            <div class="button-stack">
+              <button id="settings-audio-toggle-btn" class="btn-secondary" type="button">开启提示音</button>
+              <button id="settings-open-privacy-btn" class="btn-secondary" type="button">查看隐私政策</button>
+              <button id="settings-export-btn" class="btn-secondary" type="button">导出数据（JSON）</button>
+              <button id="settings-import-btn" class="btn-secondary" type="button">导入数据（JSON）</button>
+              <button id="settings-reset-btn" class="btn-danger" type="button">重置全部数据</button>
+            </div>
+            <input id="settings-import-file" type="file" accept=".json,application/json" hidden />
+            <p id="settings-feedback" class="feedback" aria-live="polite"></p>
+            <div class="about-block">
+              <p class="tip">版本号：<span id="settings-version"></span></p>
+              <p class="tip">
+                联系支持：
+                <a href="mailto:tillywong15@gmail.com">tillywong15@gmail.com</a>
+              </p>
             </div>
           </article>
         </section>
       </main>
 
-      <section class="assistant">
-        <div>
-          <p class="assistant-kicker">AI 书童助手</p>
-          <h2>哲学王 · 书籍引路人</h2>
-          <p>回答阅读问题、追踪进度、推荐下一本。只在你需要时出现。</p>
-        </div>
-        <div class="assistant-card">
-          <p>“你的洞察力提升了。下一本可以尝试哲学类，解锁【洞察力+5】。”</p>
-          <span>书童建议 · 即时反馈</span>
-        </div>
-      </section>
-
-      <footer class="footer">
-        <div>
-          <h3>把阅读，变成一场冒险。</h3>
-          <p>Turn reading into an adventure.</p>
-        </div>
-        <div class="footer-meta">
-          <span>轻量化 · 低频使用 · 长周期成长</span>
-          <span>Reader’s Journey MVP</span>
-        </div>
-      </footer>
+      <nav class="tabbar" aria-label="底部导航">
+        <button class="tab active" data-tab="entry" type="button">录入</button>
+        <button class="tab" data-tab="progress" type="button">进度</button>
+        <button class="tab" data-tab="panel" type="button">面板</button>
+        <button class="tab" data-tab="share" type="button">分享</button>
+        <button class="tab" data-tab="settings" type="button">设置</button>
+      </nav>
     </div>
+
+    <dialog id="sheet-dialog" class="sheet-dialog">
+      <article class="sheet-card">
+        <div class="sheet-head">
+          <h2 id="sheet-title">详情</h2>
+          <button id="sheet-close-btn" class="btn-ghost" type="button">关闭</button>
+        </div>
+        <div id="sheet-content" class="sheet-content"></div>
+      </article>
+    </dialog>
+
+    <dialog id="privacy-dialog">
+      <article class="dialog-card">
+        <h2>隐私政策（摘要）</h2>
+        <p>
+          读者之旅默认仅在本机存储你的阅读记录与设置数据，不会主动上传到远程服务器。
+          你可以随时在设置页导出、导入或重置本地数据。
+        </p>
+        <p>
+          如果未来接入云同步或第三方服务，本页面会同步更新并明确说明数据用途与处理方式。
+        </p>
+        <button id="privacy-close-btn" class="btn-primary" type="button">关闭</button>
+      </article>
+    </dialog>
 
     <script type="module" src="./app.mjs"></script>
   </body>

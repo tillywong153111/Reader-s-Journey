@@ -1,0 +1,398 @@
+{
+  "schema": "catalog_index.v2",
+  "generated_at": "2026-02-07T18:00:12.034Z",
+  "source": "Open Library Search API",
+  "per_category_target": 7200,
+  "total_books": 50400,
+  "category_counts": {
+    "logic": 7200,
+    "psychology": 7200,
+    "strategy": 7200,
+    "literature": 7200,
+    "creativity": 7200,
+    "philosophy": 7200,
+    "general": 7200
+  },
+  "shard_size": 800,
+  "shard_count": 63,
+  "shards": [
+    {
+      "id": "logic-001",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-001.json"
+    },
+    {
+      "id": "logic-002",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-002.json"
+    },
+    {
+      "id": "logic-003",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-003.json"
+    },
+    {
+      "id": "logic-004",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-004.json"
+    },
+    {
+      "id": "logic-005",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-005.json"
+    },
+    {
+      "id": "logic-006",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-006.json"
+    },
+    {
+      "id": "logic-007",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-007.json"
+    },
+    {
+      "id": "logic-008",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-008.json"
+    },
+    {
+      "id": "logic-009",
+      "category": "logic",
+      "count": 800,
+      "path": "./data/catalog/shards/logic-009.json"
+    },
+    {
+      "id": "psychology-001",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-001.json"
+    },
+    {
+      "id": "psychology-002",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-002.json"
+    },
+    {
+      "id": "psychology-003",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-003.json"
+    },
+    {
+      "id": "psychology-004",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-004.json"
+    },
+    {
+      "id": "psychology-005",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-005.json"
+    },
+    {
+      "id": "psychology-006",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-006.json"
+    },
+    {
+      "id": "psychology-007",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-007.json"
+    },
+    {
+      "id": "psychology-008",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-008.json"
+    },
+    {
+      "id": "psychology-009",
+      "category": "psychology",
+      "count": 800,
+      "path": "./data/catalog/shards/psychology-009.json"
+    },
+    {
+      "id": "strategy-001",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-001.json"
+    },
+    {
+      "id": "strategy-002",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-002.json"
+    },
+    {
+      "id": "strategy-003",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-003.json"
+    },
+    {
+      "id": "strategy-004",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-004.json"
+    },
+    {
+      "id": "strategy-005",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-005.json"
+    },
+    {
+      "id": "strategy-006",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-006.json"
+    },
+    {
+      "id": "strategy-007",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-007.json"
+    },
+    {
+      "id": "strategy-008",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-008.json"
+    },
+    {
+      "id": "strategy-009",
+      "category": "strategy",
+      "count": 800,
+      "path": "./data/catalog/shards/strategy-009.json"
+    },
+    {
+      "id": "literature-001",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-001.json"
+    },
+    {
+      "id": "literature-002",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-002.json"
+    },
+    {
+      "id": "literature-003",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-003.json"
+    },
+    {
+      "id": "literature-004",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-004.json"
+    },
+    {
+      "id": "literature-005",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-005.json"
+    },
+    {
+      "id": "literature-006",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-006.json"
+    },
+    {
+      "id": "literature-007",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-007.json"
+    },
+    {
+      "id": "literature-008",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-008.json"
+    },
+    {
+      "id": "literature-009",
+      "category": "literature",
+      "count": 800,
+      "path": "./data/catalog/shards/literature-009.json"
+    },
+    {
+      "id": "creativity-001",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-001.json"
+    },
+    {
+      "id": "creativity-002",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-002.json"
+    },
+    {
+      "id": "creativity-003",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-003.json"
+    },
+    {
+      "id": "creativity-004",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-004.json"
+    },
+    {
+      "id": "creativity-005",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-005.json"
+    },
+    {
+      "id": "creativity-006",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-006.json"
+    },
+    {
+      "id": "creativity-007",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-007.json"
+    },
+    {
+      "id": "creativity-008",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-008.json"
+    },
+    {
+      "id": "creativity-009",
+      "category": "creativity",
+      "count": 800,
+      "path": "./data/catalog/shards/creativity-009.json"
+    },
+    {
+      "id": "philosophy-001",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-001.json"
+    },
+    {
+      "id": "philosophy-002",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-002.json"
+    },
+    {
+      "id": "philosophy-003",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-003.json"
+    },
+    {
+      "id": "philosophy-004",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-004.json"
+    },
+    {
+      "id": "philosophy-005",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-005.json"
+    },
+    {
+      "id": "philosophy-006",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-006.json"
+    },
+    {
+      "id": "philosophy-007",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-007.json"
+    },
+    {
+      "id": "philosophy-008",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-008.json"
+    },
+    {
+      "id": "philosophy-009",
+      "category": "philosophy",
+      "count": 800,
+      "path": "./data/catalog/shards/philosophy-009.json"
+    },
+    {
+      "id": "general-001",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-001.json"
+    },
+    {
+      "id": "general-002",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-002.json"
+    },
+    {
+      "id": "general-003",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-003.json"
+    },
+    {
+      "id": "general-004",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-004.json"
+    },
+    {
+      "id": "general-005",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-005.json"
+    },
+    {
+      "id": "general-006",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-006.json"
+    },
+    {
+      "id": "general-007",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-007.json"
+    },
+    {
+      "id": "general-008",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-008.json"
+    },
+    {
+      "id": "general-009",
+      "category": "general",
+      "count": 800,
+      "path": "./data/catalog/shards/general-009.json"
+    }
+  ]
+}

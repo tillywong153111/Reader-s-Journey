@@ -1,0 +1,12 @@
+{
+  "schema": "category_profiles.v1",
+  "profiles": {
+    "logic": { "logic": 4, "insight": 2, "expression": 1, "strategy": 2, "will": 1, "creativity": 1 },
+    "psychology": { "logic": 1, "insight": 4, "expression": 2, "strategy": 1, "will": 2, "creativity": 1 },
+    "strategy": { "logic": 2, "insight": 1, "expression": 1, "strategy": 4, "will": 2, "creativity": 1 },
+    "literature": { "logic": 1, "insight": 2, "expression": 4, "strategy": 1, "will": 1, "creativity": 3 },
+    "creativity": { "logic": 1, "insight": 1, "expression": 2, "strategy": 1, "will": 1, "creativity": 4 },
+    "philosophy": { "logic": 2, "insight": 3, "expression": 2, "strategy": 2, "will": 2, "creativity": 2 },
+    "general": { "logic": 2, "insight": 2, "expression": 2, "strategy": 2, "will": 2, "creativity": 2 }
+  }
+}

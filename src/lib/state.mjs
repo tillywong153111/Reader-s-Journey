@@ -1,6 +1,6 @@
 import { ATTRIBUTE_KEYS, PRESET_BOOKS } from "./constants.mjs";
 
-export const STORAGE_KEY = "readers-journey-state-v1";
+export const STORAGE_KEY = "readers-journey-state-v2";
 
 function getTodayStamp() {
   const now = new Date();
@@ -37,10 +37,16 @@ export function createInitialState() {
   return {
     profile: {
       nickname: "旅者001",
-      inviteCode: "RJ-2026"
+      inviteCode: "RJ-2026",
+      soundEnabled: false
     },
     dayStamp: getTodayStamp(),
     todayEntries: 0,
+    appMeta: {
+      schemaVersion: 2,
+      catalogVersion: "",
+      lastSavedAt: ""
+    },
     books: buildInitialBooks(),
     stats: {
       level: 1,
@@ -82,6 +88,10 @@ export function normalizeState(rawState) {
   state.profile = {
     ...initial.profile,
     ...(rawState.profile || {})
+  };
+  state.appMeta = {
+    ...initial.appMeta,
+    ...(rawState.appMeta || {})
   };
   state.stats = {
     ...initial.stats,

@@ -14,7 +14,8 @@ const contentTypes = {
   ".json": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".svg": "image/svg+xml",
-  ".png": "image/png"
+  ".png": "image/png",
+  ".wav": "audio/wav"
 };
 
 if (!existsSync(root)) {

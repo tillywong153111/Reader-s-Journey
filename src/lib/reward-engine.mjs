@@ -2,6 +2,7 @@ import {
   ACHIEVEMENT_RULES,
   ATTRIBUTE_KEYS,
   CATEGORY_PROFILES,
+  REWARD_POLICY,
   SKILL_RULES
 } from "./constants.mjs";
 
@@ -13,30 +14,31 @@ export function clamp(value, min, max) {
 }
 
 export function getHistoricalWeight(index) {
-  if (index <= 10) {
-    return 1;
+  for (const item of REWARD_POLICY.entry.historical_weights) {
+    if (item.max_inclusive === null || index <= item.max_inclusive) {
+      return item.weight;
+    }
   }
-  if (index <= 50) {
-    return 0.7;
-  }
-  return 0.3;
+  return 1;
 }
 
 export function getDailyEntryWeight(index) {
-  if (index <= 1) {
-    return 1;
+  for (const item of REWARD_POLICY.entry.daily_weights) {
+    if (item.max_inclusive === null || index <= item.max_inclusive) {
+      return item.weight;
+    }
   }
-  if (index === 2) {
-    return 0.8;
-  }
-  return 0.5;
+  return 1;
 }
 
 export function calculateEntryReward({ historyIndex, dailyIndex, isNew }) {
   const historicalWeight = getHistoricalWeight(historyIndex);
   const dailyWeight = getDailyEntryWeight(dailyIndex);
-  const freshMultiplier = isNew ? 1.5 : 1;
-  const points = Math.max(1, Math.round(8 * historicalWeight * dailyWeight * freshMultiplier));
+  const freshMultiplier = isNew ? REWARD_POLICY.entry.new_book_multiplier : 1;
+  const points = Math.max(
+    1,
+    Math.round(REWARD_POLICY.entry.base_points * historicalWeight * dailyWeight * freshMultiplier)
+  );
 
   return {
     points,
@@ -47,17 +49,16 @@ export function calculateEntryReward({ historyIndex, dailyIndex, isNew }) {
 }
 
 export function calculateGrowthBase(bookCountAfterFinish) {
-  if (bookCountAfterFinish <= 50) {
-    return 10;
+  for (const item of REWARD_POLICY.growth.book_count_curves) {
+    if (item.max_inclusive === null || bookCountAfterFinish <= item.max_inclusive) {
+      return item.base_gain;
+    }
   }
-  if (bookCountAfterFinish <= 100) {
-    return 6;
-  }
-  return 3;
+  return REWARD_POLICY.growth.book_count_curves[0].base_gain;
 }
 
 export function requiredExpForLevel(level) {
-  return Math.floor(100 * Math.pow(level, 1.25));
+  return Math.floor(REWARD_POLICY.level.base * Math.pow(level, REWARD_POLICY.level.power));
 }
 
 export function applyExpGain(level, currentExp, gainExp) {
@@ -98,6 +99,9 @@ export function evaluateSkillUnlocks({
   existingSkills = []
 }) {
   const unlocked = [];
+  const normalizedFinishedTitles = (finishedTitles || []).map((title) =>
+    String(title || "").toLowerCase().trim()
+  );
 
   for (const rule of SKILL_RULES) {
     const alreadyUnlocked = existingSkills.some((skill) => skill.id === rule.id);
@@ -105,8 +109,14 @@ export function evaluateSkillUnlocks({
       continue;
     }
 
-    if (rule.specialTitle) {
-      if (finishedTitles.includes(rule.specialTitle)) {
+    if (rule.specialTitle || (rule.specialTitles && rule.specialTitles.length > 0)) {
+      const titles = rule.specialTitles && rule.specialTitles.length > 0
+        ? rule.specialTitles
+        : [rule.specialTitle];
+      const hit = titles.some((title) =>
+        normalizedFinishedTitles.includes(String(title || "").toLowerCase().trim())
+      );
+      if (hit) {
         unlocked.push({
           id: rule.id,
           name: rule.name,
@@ -160,7 +170,7 @@ export function applyProgressReward({
   const progressBase = Math.max(1, Math.round(delta / 10));
   const baseGain = progressBase + (finishedNow ? Math.ceil(growthBase / 5) : 0);
   const attributeGain = distributeAttributeGain(book.category, baseGain);
-  const expGain = Math.round(delta) + (finishedNow ? 25 : 0);
+  const expGain = Math.round(delta) + (finishedNow ? REWARD_POLICY.level.finish_bonus_exp : 0);
 
   const updatedAttributes = { ...stats.attributes };
   for (const key of ATTRIBUTE_KEYS) {
