@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>读者之旅 Reader's Journey</title>
-    <meta name="description" content="离线阅读成长应用：录入、进度、面板、分享、设置。" />
-    <meta name="theme-color" content="#f8f8fa" />
+    <meta name="description" content="离线阅读成长应用：录入、面板、分享、设置。" />
+    <meta name="theme-color" content="#0b1220" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -13,10 +13,18 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="shell">
+    <div class="shell" id="app-shell">
+      <div class="fx-layer" aria-hidden="true">
+        <div class="fx-grid"></div>
+        <div class="fx-halo"></div>
+      </div>
+
       <header class="app-header">
         <p class="app-kicker">Reader's Journey</p>
-        <h1 id="app-page-title">录入</h1>
+        <div class="title-row">
+          <h1 id="app-page-title">录入</h1>
+          <span id="header-level-badge" class="level-badge">Lv.1</span>
+        </div>
         <p id="app-page-subtitle">搜索并选择一本书加入旅程</p>
       </header>
 
@@ -25,17 +33,19 @@
           class="view entry-view active"
           data-view="entry"
           data-title="录入"
-          data-subtitle="搜索并选择一本书加入旅程"
+          data-subtitle="让每次开卷，都成为一次被铭记的成长"
         >
           <article class="card entry-main-card">
-            <h2>离线书库搜索</h2>
+            <div id="entry-quest-card" class="quest-strip"></div>
+            <h2>星图书库检索</h2>
             <label>
               搜索书名 / 作者 / ISBN
               <input id="entry-search-input" type="text" placeholder="例如：思考，快与慢" />
             </label>
             <div id="entry-search-results" class="search-results"></div>
-            <div class="inline-actions">
+            <div class="inline-actions inline-actions-entry">
               <button id="entry-search-more-btn" class="btn-ghost" type="button">查看更多结果</button>
+              <button id="entry-online-search-btn" class="btn-ghost" type="button">联网搜索</button>
               <button id="entry-custom-mode-btn" class="btn-secondary" type="button">自编录入</button>
             </div>
             <div id="entry-selected-book" class="selection-card"></div>
@@ -73,6 +83,7 @@
             <button id="entry-add-btn" class="btn-primary" type="button">录入并结算</button>
             <p id="entry-mode-hint" class="tip"></p>
             <p id="entry-feedback" class="feedback" aria-live="polite"></p>
+            <div id="entry-honor-card" class="honor-card hidden" aria-live="polite"></div>
           </article>
 
           <article class="card mini-card">
@@ -85,51 +96,30 @@
         </section>
 
         <section
-          class="view progress-view"
-          data-view="progress"
-          data-title="进度"
-          data-subtitle="更新一本书的阅读进度并获得即时奖励"
-        >
-          <article class="card progress-main-card">
-            <h2>进度更新</h2>
-            <label>
-              选择书籍
-              <select id="progress-book-select"></select>
-            </label>
-            <p id="progress-book-meta" class="tip"></p>
-            <div class="progress-header">
-              <span>阅读进度</span>
-              <strong id="progress-percent">0%</strong>
-            </div>
-            <input id="progress-range" type="range" min="0" max="100" value="0" />
-            <p class="tip">已读 <span id="progress-pages">0</span> 页</p>
-            <div id="progress-reward-list" class="reward-grid"></div>
-            <button id="progress-update-btn" class="btn-primary" type="button">更新并结算</button>
-          </article>
-
-          <article class="card mini-card">
-            <div class="card-head">
-              <h2>技能摘要（最多3项）</h2>
-              <button id="progress-skills-more-btn" class="text-btn" type="button">查看全部</button>
-            </div>
-            <div id="progress-skill-list" class="chip-list"></div>
-          </article>
-        </section>
-
-        <section
           class="view panel-view"
           data-view="panel"
           data-title="面板"
-          data-subtitle="属性、等级、技能与成就总览"
+          data-subtitle="卷轴书架记录每一步成长，点开即可更新进度与感触"
         >
           <article class="card panel-main-card">
-            <h2>角色状态</h2>
-            <p id="panel-level-line"></p>
-            <div id="panel-attribute-list" class="attribute-list"></div>
+            <div class="card-head">
+              <h2>卷轴书架（在读 + 已完成）</h2>
+              <button id="panel-shelf-more-btn" class="text-btn" type="button">查看全部</button>
+            </div>
+            <div id="panel-shelf-list" class="scroll-shelf"></div>
           </article>
 
-          <article class="card mini-card">
+          <article class="card mini-card panel-summary-card">
             <div class="card-head">
+              <h2>旅者属性摘要</h2>
+              <button id="panel-attributes-more-btn" class="text-btn" type="button">查看全部</button>
+            </div>
+            <div class="panel-core">
+              <p class="panel-kicker">旅者档案</p>
+              <p id="panel-level-line"></p>
+            </div>
+            <div id="panel-attribute-summary-list" class="attribute-summary-list"></div>
+            <div class="card-head panel-chip-head">
               <h2>技能与成就摘要</h2>
               <div class="head-actions">
                 <button id="panel-skills-more-btn" class="text-btn" type="button">技能</button>
@@ -145,15 +135,15 @@
           class="view share-view"
           data-view="share"
           data-title="分享"
-          data-subtitle="生成一屏角色卡并复制分享文案"
+          data-subtitle="把你的阅读轨迹，分享给下一位旅者"
         >
           <article class="card share-main-card">
-            <h2>角色卡</h2>
+            <h2>星图证书</h2>
             <label>
               昵称
               <input id="share-nickname-input" type="text" maxlength="24" placeholder="输入你的昵称" />
             </label>
-            <div class="share-card">
+            <div id="share-card" class="share-card">
               <h3 id="share-card-name">旅者001</h3>
               <p id="share-card-level"></p>
               <p id="share-card-attrs"></p>
@@ -172,37 +162,57 @@
           class="view settings-view"
           data-view="settings"
           data-title="设置"
-          data-subtitle="隐私、数据与版本信息"
+          data-subtitle="管理音频体验、数据安全与版本信息"
         >
           <article class="card settings-main-card">
-            <h2>隐私与数据</h2>
-            <p class="tip strong">数据仅保存在本机，不会自动上传到云端。</p>
-            <p id="settings-storage-status" class="tip"></p>
-            <p id="settings-last-saved" class="tip"></p>
-            <p id="settings-catalog-meta" class="tip"></p>
-            <div class="button-stack">
-              <button id="settings-audio-toggle-btn" class="btn-secondary" type="button">开启提示音</button>
-              <button id="settings-open-privacy-btn" class="btn-secondary" type="button">查看隐私政策</button>
-              <button id="settings-export-btn" class="btn-secondary" type="button">导出数据（JSON）</button>
-              <button id="settings-import-btn" class="btn-secondary" type="button">导入数据（JSON）</button>
-              <button id="settings-reset-btn" class="btn-danger" type="button">重置全部数据</button>
-            </div>
-            <input id="settings-import-file" type="file" accept=".json,application/json" hidden />
-            <p id="settings-feedback" class="feedback" aria-live="polite"></p>
-            <div class="about-block">
+            <section class="settings-block">
+              <h2>音频与体验</h2>
+              <p id="settings-audio-status" class="tip"></p>
+              <div class="button-stack">
+                <button id="settings-audio-master-btn" class="btn-secondary" type="button">主音频：开启</button>
+                <button id="settings-bgm-toggle-btn" class="btn-secondary" type="button">背景音乐：开启</button>
+                <button id="settings-sfx-toggle-btn" class="btn-secondary" type="button">提示音：开启</button>
+              </div>
+              <label>
+                背景音乐音量
+                <input id="settings-bgm-volume" type="range" min="0" max="100" step="1" value="52" />
+              </label>
+              <label>
+                提示音音量
+                <input id="settings-sfx-volume" type="range" min="0" max="100" step="1" value="82" />
+              </label>
+            </section>
+
+            <section class="settings-block">
+              <h2>数据与隐私</h2>
+              <p class="tip strong">数据仅保存在本机，不会自动上传到云端。</p>
+              <p id="settings-storage-status" class="tip"></p>
+              <p id="settings-last-saved" class="tip"></p>
+              <p id="settings-catalog-meta" class="tip"></p>
+              <div class="button-stack">
+                <button id="settings-open-privacy-btn" class="btn-secondary" type="button">查看隐私政策</button>
+                <button id="settings-export-btn" class="btn-secondary" type="button">导出数据（JSON）</button>
+                <button id="settings-import-btn" class="btn-secondary" type="button">导入数据（JSON）</button>
+                <button id="settings-reset-btn" class="btn-danger" type="button">重置全部数据</button>
+              </div>
+              <input id="settings-import-file" type="file" accept=".json,application/json" hidden />
+              <p id="settings-feedback" class="feedback" aria-live="polite"></p>
+            </section>
+
+            <section class="settings-block about-block">
+              <h2>版本与支持</h2>
               <p class="tip">版本号：<span id="settings-version"></span></p>
               <p class="tip">
                 联系支持：
                 <a href="mailto:tillywong15@gmail.com">tillywong15@gmail.com</a>
               </p>
-            </div>
+            </section>
           </article>
         </section>
       </main>
 
       <nav class="tabbar" aria-label="底部导航">
         <button class="tab active" data-tab="entry" type="button">录入</button>
-        <button class="tab" data-tab="progress" type="button">进度</button>
         <button class="tab" data-tab="panel" type="button">面板</button>
         <button class="tab" data-tab="share" type="button">分享</button>
         <button class="tab" data-tab="settings" type="button">设置</button>
@@ -211,6 +221,7 @@
 
     <dialog id="sheet-dialog" class="sheet-dialog">
       <article class="sheet-card">
+        <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="sheet-head">
           <h2 id="sheet-title">详情</h2>
           <button id="sheet-close-btn" class="btn-ghost" type="button">关闭</button>

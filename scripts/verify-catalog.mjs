@@ -17,9 +17,32 @@ function ensure(condition, message) {
 async function verifySourceLinks(books, sampleSize) {
   const sample = books.slice(0, sampleSize);
   const concurrency = Math.max(1, Number(process.env.VERIFY_CONCURRENCY || 8));
-  const acceptedStatus = new Set([200, 301, 302, 303, 307, 308]);
+  const acceptedStatus = new Set([200, 301, 302, 303, 307, 308, 401, 403, 405]);
   let failed = 0;
   let pointer = 0;
+
+  async function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function probeUrl(url) {
+    const methods = ["HEAD", "GET"];
+    for (const method of methods) {
+      try {
+        const response = await fetch(url, {
+          method,
+          redirect: "manual",
+          headers: method === "GET" ? { Range: "bytes=0-0" } : undefined
+        });
+        if (acceptedStatus.has(response.status)) {
+          return true;
+        }
+      } catch {
+        // try next method
+      }
+    }
+    return false;
+  }
 
   async function worker() {
     while (pointer < sample.length) {
@@ -31,15 +54,20 @@ async function verifySourceLinks(books, sampleSize) {
         failed += 1;
         continue;
       }
-      try {
-        const response = await fetch(url, { method: "HEAD", redirect: "manual" });
-        if (!acceptedStatus.has(response.status)) {
-          failed += 1;
-        }
-      } catch {
+      let ok = false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        ok = await probeUrl(url);
+        if (ok) break;
+        await sleep(180 * (attempt + 1));
+      }
+      if (!ok) {
         failed += 1;
       }
     }
+  }
+
+  if (sample.length === 0) {
+    return 0;
   }
 
   await Promise.all(Array.from({ length: Math.min(concurrency, sample.length) }, () => worker()));

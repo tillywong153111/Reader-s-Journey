@@ -15,5 +15,8 @@
     "data:verify:full": "FULL_VERIFY=1 node scripts/verify-catalog.mjs",
     "assets:audio": "node scripts/generate-audio-assets.mjs",
     "data:refresh": "node scripts/fetch-catalog.mjs && node scripts/build-data-modules.mjs && node scripts/verify-catalog.mjs"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
   }
 }

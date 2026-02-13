@@ -3,8 +3,8 @@
   "short_name": "读者之旅",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f8f8fa",
-  "theme_color": "#f8f8fa",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
   "icons": [
     {
       "src": "./assets/icon.svg",

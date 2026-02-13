@@ -1,10 +1,10 @@
-import { writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const SAMPLE_RATE = 44100;
 
 function makeTone({ frequency, durationMs, gain = 0.2, attackMs = 8, releaseMs = 60 }) {
-  const totalSamples = Math.floor((SAMPLE_RATE * durationMs) / 1000);
+  const totalSamples = Math.max(1, Math.floor((SAMPLE_RATE * durationMs) / 1000));
   const attackSamples = Math.max(1, Math.floor((SAMPLE_RATE * attackMs) / 1000));
   const releaseSamples = Math.max(1, Math.floor((SAMPLE_RATE * releaseMs) / 1000));
   const samples = new Float32Array(totalSamples);
@@ -70,6 +70,146 @@ function writeWav(path, samples) {
   writeFileSync(path, encodeWavMono(samples));
 }
 
+function normalizeBuffer(buffer, targetPeak = 0.85) {
+  let max = 0;
+  for (let i = 0; i < buffer.length; i += 1) {
+    const value = Math.abs(buffer[i]);
+    if (value > max) {
+      max = value;
+    }
+  }
+  if (max <= targetPeak) return buffer;
+  const scale = targetPeak / max;
+  for (let i = 0; i < buffer.length; i += 1) {
+    buffer[i] *= scale;
+  }
+  return buffer;
+}
+
+function centsToRatio(cents) {
+  return Math.pow(2, cents / 1200);
+}
+
+function addAmbientVoice(
+  buffer,
+  {
+    frequency,
+    gain,
+    lfoHz,
+    driftHz,
+    phaseOffset = 0,
+    harmonicMix = 0.18,
+    detuneCents = 0
+  }
+) {
+  const ratio = centsToRatio(detuneCents);
+  const angularBase = (2 * Math.PI * frequency * ratio) / SAMPLE_RATE;
+  const lfoPhase = phaseOffset * 0.63;
+  const driftPhase = phaseOffset * 0.27;
+  let phase = phaseOffset;
+
+  for (let i = 0; i < buffer.length; i += 1) {
+    const t = i / SAMPLE_RATE;
+    const drift = 1 + 0.0028 * Math.sin(2 * Math.PI * driftHz * t + driftPhase);
+    phase += angularBase * drift;
+    if (phase > Math.PI * 2) {
+      phase -= Math.PI * 2;
+    }
+    const fundamental = Math.sin(phase);
+    const overtone = Math.sin(phase * 2 + phaseOffset * 0.41);
+    const lfo = 0.82 + 0.18 * Math.sin(2 * Math.PI * lfoHz * t + lfoPhase);
+    buffer[i] += (fundamental * (1 - harmonicMix) + overtone * harmonicMix) * gain * lfo;
+  }
+}
+
+function addShimmerLayer(buffer, { frequency, gain, lfoHz, driftHz, phaseOffset = 0 }) {
+  let phase = phaseOffset;
+  const angularBase = (2 * Math.PI * frequency) / SAMPLE_RATE;
+  for (let i = 0; i < buffer.length; i += 1) {
+    const t = i / SAMPLE_RATE;
+    const drift = 1 + 0.002 * Math.sin(2 * Math.PI * driftHz * t + phaseOffset * 0.12);
+    phase += angularBase * drift;
+    if (phase > Math.PI * 2) {
+      phase -= Math.PI * 2;
+    }
+    const lfo = 0.52 + 0.48 * Math.sin(2 * Math.PI * lfoHz * t + phaseOffset * 0.91);
+    const tone = Math.sin(phase) * 0.74 + Math.sin(phase * 1.5 + 0.8) * 0.26;
+    buffer[i] += tone * gain * lfo;
+  }
+}
+
+function applyGlobalEnvelope(buffer, fadeInMs, fadeOutMs) {
+  const fadeInSamples = Math.max(1, Math.floor((SAMPLE_RATE * fadeInMs) / 1000));
+  const fadeOutSamples = Math.max(1, Math.floor((SAMPLE_RATE * fadeOutMs) / 1000));
+  const total = buffer.length;
+
+  for (let i = 0; i < total; i += 1) {
+    let env = 1;
+    if (i < fadeInSamples) {
+      env = i / fadeInSamples;
+    } else if (i > total - fadeOutSamples) {
+      env = (total - i) / fadeOutSamples;
+    }
+    const soft = Math.tanh(buffer[i] * 0.92);
+    buffer[i] = soft * Math.max(0, env);
+  }
+}
+
+function synthesizeBgm({
+  rootHz,
+  ratios,
+  durationMs,
+  padGain,
+  droneGain,
+  shimmerGain
+}) {
+  const totalSamples = Math.floor((SAMPLE_RATE * durationMs) / 1000);
+  const buffer = new Float32Array(totalSamples);
+
+  for (let i = 0; i < ratios.length; i += 1) {
+    const baseFreq = rootHz * ratios[i];
+    addAmbientVoice(buffer, {
+      frequency: baseFreq,
+      gain: padGain * 0.9,
+      lfoHz: 0.0048 + i * 0.0009,
+      driftHz: 0.0028 + i * 0.0005,
+      phaseOffset: baseFreq * 0.017,
+      harmonicMix: 0.15,
+      detuneCents: -4
+    });
+    addAmbientVoice(buffer, {
+      frequency: baseFreq,
+      gain: padGain * 0.7,
+      lfoHz: 0.0056 + i * 0.0011,
+      driftHz: 0.0032 + i * 0.0006,
+      phaseOffset: baseFreq * 0.023,
+      harmonicMix: 0.12,
+      detuneCents: 4
+    });
+  }
+
+  addAmbientVoice(buffer, {
+    frequency: rootHz * 0.5,
+    gain: droneGain,
+    lfoHz: 0.0032,
+    driftHz: 0.0017,
+    phaseOffset: rootHz * 0.031,
+    harmonicMix: 0.06,
+    detuneCents: 0
+  });
+
+  addShimmerLayer(buffer, {
+    frequency: rootHz * 4.5,
+    gain: shimmerGain,
+    lfoHz: 0.009,
+    driftHz: 0.0037,
+    phaseOffset: rootHz * 0.012
+  });
+
+  applyGlobalEnvelope(buffer, 9000, 10000);
+  return normalizeBuffer(buffer, 0.84);
+}
+
 function main() {
   const outputDir = resolve(process.cwd(), "src/assets/audio");
   mkdirSync(outputDir, { recursive: true });
@@ -98,9 +238,29 @@ function main() {
     makeTone({ frequency: 1046, durationMs: 220, gain: 0.2 })
   ]);
 
+  const bgmAstral = synthesizeBgm({
+    rootHz: 220.0,
+    ratios: [1, 1.25, 1.5, 1.875],
+    durationMs: 58000,
+    padGain: 0.031,
+    droneGain: 0.028,
+    shimmerGain: 0.0032
+  });
+
+  const bgmSanctum = synthesizeBgm({
+    rootHz: 174.61,
+    ratios: [1, 1.2, 1.498, 1.782],
+    durationMs: 56000,
+    padGain: 0.029,
+    droneGain: 0.03,
+    shimmerGain: 0.0028
+  });
+
   writeWav(resolve(outputDir, "entry-success.wav"), entry);
   writeWav(resolve(outputDir, "skill-unlock.wav"), skill);
   writeWav(resolve(outputDir, "level-up.wav"), level);
+  writeWav(resolve(outputDir, "bgm-astral-loop.wav"), bgmAstral);
+  writeWav(resolve(outputDir, "bgm-sanctum-loop.wav"), bgmSanctum);
 
   console.log("Audio assets generated in src/assets/audio");
 }
