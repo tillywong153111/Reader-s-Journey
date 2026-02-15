@@ -219,6 +219,26 @@ async function waitForSheetVisible(page, timeoutMs = 9000) {
   }
 }
 
+async function clickFirstWithRetry(page, selector, attempts = 4, timeoutMs = 4000) {
+  for (let index = 0; index < attempts; index += 1) {
+    const locator = page.locator(selector).first();
+    if (!(await locator.count())) return false;
+    try {
+      await locator.click({ timeout: timeoutMs });
+      return true;
+    } catch (error) {
+      const message = String(error || "");
+      const retriable =
+        /detached|not visible|Timeout|receives pointer events|stable/i.test(message) && index < attempts - 1;
+      if (!retriable) {
+        throw error;
+      }
+      await page.waitForTimeout(140);
+    }
+  }
+  return false;
+}
+
 async function queueHotspotByHook(page, hotspotId) {
   try {
     return await page.evaluate((zoneId) => {
@@ -442,9 +462,8 @@ async function runShelfFlow(page, scenario) {
   }
 
   if (await page.locator(".sheet-reflection-edit").count()) {
-    await page.locator(".sheet-reflection-edit").first().click();
+    flow.reflectionEditOpened = await clickFirstWithRetry(page, ".sheet-reflection-edit");
     await page.waitForTimeout(180);
-    flow.reflectionEditOpened = true;
     if (await page.locator("#sheet-cancel-reflection-btn").count()) {
       await page.locator("#sheet-cancel-reflection-btn").click();
       await page.waitForTimeout(160);
@@ -452,9 +471,8 @@ async function runShelfFlow(page, scenario) {
   }
 
   if (await page.locator(".sheet-reflection-delete").count()) {
-    await page.locator(".sheet-reflection-delete").first().click();
+    flow.reflectionDeleteAttempted = await clickFirstWithRetry(page, ".sheet-reflection-delete");
     await page.waitForTimeout(220);
-    flow.reflectionDeleteAttempted = true;
   }
 
   scenario.snapshots.push({ name: "shelf-flow", state: await readTextState(page) });

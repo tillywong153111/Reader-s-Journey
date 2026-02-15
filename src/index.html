@@ -48,9 +48,13 @@
                 <span id="world-book-chip" class="badge">已完成 0 本</span>
               </div>
               <div class="world-actions">
-                <button id="world-entry-btn" class="world-action-btn" type="button">登记</button>
-                <button id="world-share-btn" class="world-action-btn" type="button">分享</button>
+                <button id="world-entry-btn" class="world-action-btn" data-action="entry" type="button">登记</button>
+                <button id="world-share-btn" class="world-action-btn" data-action="share" type="button">分享</button>
               </div>
+            </div>
+            <div class="world-overview" aria-live="polite">
+              <span id="world-daily-chip" class="badge world-overview-chip">今日录入 0/3</span>
+              <span id="world-focus-chip" class="badge world-overview-chip">最近地标：自由探索</span>
             </div>
             <div id="world-canvas" class="world-canvas" role="img" aria-label="旅者主世界探索场景"></div>
             <div class="world-hud">

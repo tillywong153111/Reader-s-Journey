@@ -20,6 +20,8 @@
     "test:e2e:headed": "node scripts/e2e-exhaustive.mjs --headed",
     "visual:baseline": "node scripts/visual-regression.mjs --mode=baseline",
     "visual:check": "node scripts/visual-regression.mjs --mode=check",
+    "ui:baseline": "node scripts/ui-pipeline.mjs baseline",
+    "ui:check": "node scripts/ui-pipeline.mjs check",
     "data:refresh": "node scripts/fetch-catalog.mjs && node scripts/build-data-modules.mjs && node scripts/verify-catalog.mjs"
   },
   "dependencies": {

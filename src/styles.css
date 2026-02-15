@@ -398,6 +398,19 @@ body {
   pointer-events: none;
 }
 
+.world-overview {
+  position: absolute;
+  top: calc(54px + var(--safe-top));
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
 .world-status {
   display: inline-flex;
   align-items: center;
@@ -428,6 +441,13 @@ body {
     0 6px 14px rgba(11, 30, 50, 0.32),
     inset 0 1px 0 rgba(255, 247, 228, 0.18);
   cursor: pointer;
+}
+
+.world-action-btn:hover,
+.world-action-btn:focus-visible {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  outline: none;
 }
 
 .world-action-btn:active {
@@ -500,6 +520,32 @@ body {
 .world-hud .tip {
   color: #f8e8c8;
   text-shadow: 0 1px 2px rgba(13, 26, 43, 0.6);
+}
+
+.world-overview-chip {
+  max-width: min(100%, 248px);
+  border: 1px solid rgba(230, 198, 137, 0.46);
+  background:
+    linear-gradient(180deg, rgba(34, 57, 82, 0.84), rgba(24, 42, 63, 0.9)),
+    radial-gradient(circle at 16% 18%, rgba(255, 230, 171, 0.18), rgba(255, 230, 171, 0));
+  color: #f8ebce;
+  box-shadow:
+    0 6px 12px rgba(12, 29, 49, 0.26),
+    inset 0 1px 0 rgba(255, 240, 204, 0.18);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.world-overview-chip.ready {
+  border-color: rgba(170, 224, 115, 0.55);
+  background:
+    linear-gradient(180deg, rgba(46, 83, 49, 0.9), rgba(33, 63, 37, 0.92)),
+    radial-gradient(circle at 16% 18%, rgba(206, 255, 145, 0.22), rgba(206, 255, 145, 0));
+}
+
+.world-overview-chip.hot {
+  border-color: rgba(255, 222, 149, 0.62);
 }
 
 .shell[data-density="compact"] .app-header {
@@ -3130,10 +3176,22 @@ dialog::backdrop {
   top: calc(8px + var(--safe-top));
 }
 
+.world-overview {
+  top: calc(58px + var(--safe-top));
+}
+
 .world-status .badge {
   border-width: 2px;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.world-overview-chip {
+  font-weight: 700;
+  border-width: 2px;
+  border-radius: 10px;
+  min-height: 30px;
+  max-width: min(100%, 238px);
 }
 
 .world-action-btn {
@@ -3155,6 +3213,33 @@ dialog::backdrop {
   border-radius: 50%;
   background: linear-gradient(180deg, rgba(255, 240, 206, 0.98), rgba(250, 220, 158, 0.94));
   box-shadow: 0 0 0 1px rgba(80, 54, 25, 0.3);
+}
+
+.world-action-btn[data-action="entry"] {
+  background:
+    linear-gradient(180deg, rgba(67, 133, 69, 0.97), rgba(46, 108, 48, 0.97)),
+    linear-gradient(125deg, rgba(255, 241, 210, 0.14), rgba(255, 241, 210, 0));
+}
+
+.world-action-btn[data-action="entry"]::before {
+  background: linear-gradient(180deg, rgba(255, 245, 220, 0.98), rgba(211, 248, 173, 0.94));
+}
+
+.world-action-btn[data-action="share"] {
+  background:
+    linear-gradient(180deg, rgba(65, 122, 177, 0.97), rgba(49, 93, 142, 0.97)),
+    linear-gradient(125deg, rgba(255, 241, 210, 0.14), rgba(255, 241, 210, 0));
+}
+
+.world-action-btn[data-action="share"]::before {
+  background: linear-gradient(180deg, rgba(255, 245, 220, 0.98), rgba(194, 225, 255, 0.94));
+}
+
+.world-action-btn:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(255, 243, 211, 0.72),
+    0 8px 16px rgba(74, 47, 22, 0.28),
+    inset 0 1px 0 rgba(233, 255, 207, 0.3);
 }
 
 #world-zone-hint {
@@ -3383,6 +3468,16 @@ dialog::backdrop {
     min-width: 64px;
     min-height: 34px;
     font-size: 12px;
+  }
+
+  .world-overview {
+    top: calc(52px + var(--safe-top));
+    gap: 6px;
+  }
+
+  .world-overview-chip {
+    font-size: 11px;
+    max-width: min(100%, 214px);
   }
 
   .sheet-head h2 {

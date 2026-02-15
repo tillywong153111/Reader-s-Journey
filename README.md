@@ -1,6 +1,6 @@
 # 读者之旅 Reader’s Journey
 
-离线纯前端的阅读 RPG 应用（v1.7）。
+离线纯前端的阅读 RPG 应用（v1.7.1）。
 
 ## v1.7 全量交付（穷尽测试 + 木质卷轴农场风）
 
@@ -10,6 +10,13 @@
 4. 穷尽回归：新增 `scripts/e2e-exhaustive.mjs`，覆盖世界移动、5 大热点、录入/面板/藏书/分享/设置、多层弹层链路。
 5. 视觉回归：`scripts/visual-regression.mjs` 已适配世界内入口流，支持基线与检查模式。
 6. 保持测试接口兼容：`window.render_game_to_text` 与 `window.advanceTime(ms)` 不变，并补充了仅测试用 `window.__RJ_TEST__` 钩子。
+
+## v1.7.1 视觉工具链与主世界 HUD 升级
+
+1. 主世界新增概览 HUD：显示“今日录入进度”和“最近/正在前往地标”，并随探索状态自动更新。
+2. 主世界右上“登记/分享”按钮按语义分色并增强 hover/focus 可见性，移动端小屏避免裁切。
+3. 新增 UI 验证流水线脚本：`scripts/ui-pipeline.mjs`，支持 `ui:check` 与 `ui:baseline`。
+4. 新增视觉工具链文档：`docs/visual-toolchain.md`（设计系统、E2E、视觉回归、基线更新流程）。
 
 ## v1.6.2 世界渲染修复与纯游戏内 HUD
 
@@ -67,9 +74,10 @@
 2. 交互点：录入台、属性镜、藏书阁、信使鸽、工坊。
 3. 点击交互点：若距离足够则立即交互；若距离过远则自动走近后交互。
 4. 世界 HUD 内置于画布：显示等级、完成进度、交互提示。
-5. 画布内固定按钮：登记、分享。
-6. 所有 Sheet 头部提供“返回上一层 + 回到世界”双按钮导航（支持多层弹层回退）。
-7. 检索结果中的“约320页”表示该来源未提供精确页数，系统使用估算页数用于先行录入。
+5. 画布内固定按钮：登记、分享（语义分色）。
+6. 新增概览 HUD：今日录入（0/3）+ 最近地标/自动寻路目标提示。
+7. 所有 Sheet 头部提供“返回上一层 + 回到世界”双按钮导航（支持多层弹层回退）。
+8. 检索结果中的“约320页”表示该来源未提供精确页数，系统使用估算页数用于先行录入。
 
 ### 星图神殿（世界交互）
 1. 六维属性全量展示（含图标、数值动画、段位标记、能量条）。
@@ -157,9 +165,11 @@
 7. 穷尽 E2E（headed 可视检查）：`npm run test:e2e:headed`
 8. 生成视觉回归基线截图：`npm run visual:baseline`
 9. 执行视觉回归检查：`npm run visual:check`
-10. 预览构建产物：`npm run preview`
-11. 生成/更新音频素材：`npm run assets:audio`
-12. 同步第三方运行时（Howler/Lottie）到本地：`npm run assets:vendor`
+10. 一键 UI 检查流水线：`npm run ui:check`
+11. 一键 UI 基线流水线：`npm run ui:baseline`
+12. 预览构建产物：`npm run preview`
+13. 生成/更新音频素材：`npm run assets:audio`
+14. 同步第三方运行时（Howler/Lottie）到本地：`npm run assets:vendor`
 
 ## 项目结构
 
@@ -173,6 +183,8 @@
 8. `scripts/sync-vendor-assets.mjs` 第三方运行时同步脚本
 9. `scripts/e2e-exhaustive.mjs` Playwright 穷尽交互测试脚本
 10. `scripts/visual-regression.mjs` Playwright 截图与像素对比脚本（世界内入口流）
-11. `src/assets/vendor/*.js` 离线运行时库（Howler/Lottie/Phaser）
-12. `src/assets/animations/*.json` Lottie 动效数据
-13. `docs/assets-license.md` 数据与素材许可说明
+11. `scripts/ui-pipeline.mjs` UI 验证流水线（lint/test/build/e2e/visual）
+12. `src/assets/vendor/*.js` 离线运行时库（Howler/Lottie/Phaser）
+13. `src/assets/animations/*.json` Lottie 动效数据
+14. `docs/assets-license.md` 数据与素材许可说明
+15. `docs/visual-toolchain.md` 视觉工具链与基线更新说明

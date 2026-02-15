@@ -177,6 +177,8 @@ const elements = {
   worldZoneHint: document.getElementById("world-zone-hint"),
   worldLevelChip: document.getElementById("world-level-chip"),
   worldBookChip: document.getElementById("world-book-chip"),
+  worldDailyChip: document.getElementById("world-daily-chip"),
+  worldFocusChip: document.getElementById("world-focus-chip"),
   worldEntryBtn: document.getElementById("world-entry-btn"),
   worldShareBtn: document.getElementById("world-share-btn"),
   entryQuestCard: document.getElementById("entry-quest-card"),
@@ -2454,7 +2456,29 @@ function renderWorld() {
   if (elements.worldBookChip) {
     elements.worldBookChip.textContent = `已完成 ${getCompletedBooks(state).length} 本`;
   }
+  updateWorldOverviewHud();
   worldRuntime.scene?.updateWorldOverlay?.();
+}
+
+function updateWorldOverviewHud() {
+  if (elements.worldDailyChip) {
+    const todayDone = Math.min(3, Math.max(0, Number(state.todayEntries) || 0));
+    const remaining = Math.max(0, 3 - todayDone);
+    elements.worldDailyChip.textContent =
+      remaining > 0 ? `今日录入 ${todayDone}/3` : "今日录入 3/3 · 已达标";
+    elements.worldDailyChip.classList.toggle("ready", remaining === 0);
+  }
+  if (elements.worldFocusChip) {
+    const target = getWorldHotspot(worldRuntime.autoTargetZoneId);
+    const active = getWorldHotspot(worldRuntime.activeZoneId);
+    const label = target
+      ? `正在前往：${target.label}`
+      : active
+        ? `最近地标：${active.label}`
+        : "最近地标：自由探索";
+    elements.worldFocusChip.textContent = label;
+    elements.worldFocusChip.classList.toggle("hot", Boolean(target || active));
+  }
 }
 
 function setWorldHint(text, hot = false) {
@@ -2463,6 +2487,7 @@ function setWorldHint(text, hot = false) {
     elements.worldZoneHint.textContent = value;
     elements.worldZoneHint.classList.toggle("world-zone-hot", hot);
   }
+  updateWorldOverviewHud();
   worldRuntime.scene?.setWorldHintText?.(value, hot);
 }
 
@@ -2508,6 +2533,7 @@ function performWorldAction(zoneId) {
   if (zoneId === "share") {
     openShareSheet();
   }
+  updateWorldOverviewHud();
 }
 
 function syncWorldSceneState() {
@@ -3720,6 +3746,7 @@ function initWorldEngine() {
     worldControlState.targetX = hotspot.x;
     worldControlState.targetY = hotspot.walkY || hotspot.y;
     setWorldHint(`正在前往 ${hotspot.label}...`, true);
+    updateWorldOverviewHud();
   };
 
   scene.updatePointerTarget = function updatePointerTarget(pointer) {
@@ -3897,6 +3924,7 @@ function initWorldEngine() {
       } else {
         setWorldHint("点地移动，靠近并点击建筑即可交互。", false);
       }
+      updateWorldOverviewHud();
     }
     for (const hotspot of this.hotspots) {
       const active = hotspot.id === this.activeHotspotId;
