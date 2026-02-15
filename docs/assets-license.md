@@ -27,10 +27,31 @@
   - `src/assets/audio/entry-success.wav`
   - `src/assets/audio/skill-unlock.wav`
   - `src/assets/audio/level-up.wav`
+  - `src/assets/audio/ui-tap.wav`
   - `src/assets/audio/bgm-astral-loop.wav`
   - `src/assets/audio/bgm-sanctum-loop.wav`
 - Source: generated locally by `scripts/generate-audio-assets.mjs` (original work).
-- Rendering note: BGM tracks use long-form ambient synthesis (no obvious beat pulse), loop length ~56-58s.
+- Rendering note: BGM tracks use long-form ambient synthesis (no obvious beat pulse), loop length ~70-72s.
+- License: project-owned generated assets.
+
+## Runtime vendor libraries
+- Files:
+  - `src/assets/vendor/howler.min.js`
+  - `src/assets/vendor/lottie.min.js`
+  - `src/assets/vendor/phaser.min.js`
+- Source:
+  - Howler.js: `https://github.com/goldfire/howler.js`
+  - Lottie Web: `https://github.com/airbnb/lottie-web`
+  - Phaser: `https://github.com/phaserjs/phaser`
+- License:
+  - Howler.js: MIT
+  - Lottie Web: MIT
+  - Phaser: MIT
+
+## Lottie animation data
+- File:
+  - `src/assets/animations/header-sparkle.json`
+- Source: project-authored animation JSON (original work).
 - License: project-owned generated assets.
 
 ## Font assets
@@ -46,3 +67,20 @@
 - Files: `src/assets/icons/*.svg`
 - Source: project-authored SVG icons (original work).
 - License: project-owned generated assets.
+
+## Pixel world & UI visual assets
+- Files:
+  - `src/assets/pixel/**`
+  - `src/styles.css`（木质卷轴农场风视觉 token 与组件皮肤）
+- Source:
+  - Pixel 素材与 UI 贴图由项目内生成/手工绘制并在仓库维护。
+  - 参考风格来自公开游戏截图，仅用于视觉方向，不直接拷贝第三方受版权保护素材文件。
+- License:
+  - 项目自制素材：project-owned generated assets.
+
+## E2E / visual testing assets
+- Files:
+  - `scripts/e2e-exhaustive.mjs`
+  - `scripts/visual-regression.mjs`
+- Note:
+  - 脚本运行时会在 `output/playwright/**` 与 `test-results/**` 生成截图和报告，这些属于可复现测试产物，不作为发布素材分发。

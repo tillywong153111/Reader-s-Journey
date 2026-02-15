@@ -1,4 +1,4 @@
-const CACHE_NAME = "readers-journey-v9";
+const CACHE_NAME = "readers-journey-v21";
 const OFFLINE_URL = "./offline.html";
 const APP_SHELL = [
   "./",
@@ -23,8 +23,13 @@ const APP_SHELL = [
   "./assets/audio/entry-success.wav",
   "./assets/audio/skill-unlock.wav",
   "./assets/audio/level-up.wav",
+  "./assets/audio/ui-tap.wav",
   "./assets/audio/bgm-astral-loop.wav",
   "./assets/audio/bgm-sanctum-loop.wav",
+  "./assets/vendor/howler.min.js",
+  "./assets/vendor/lottie.min.js",
+  "./assets/vendor/phaser.min.js",
+  "./assets/animations/header-sparkle.json",
   "./assets/fonts/NotoSansCJKsc-Regular.otf",
   "./assets/fonts/NotoSerifCJKsc-Regular.otf",
   "./assets/icons/logic.svg",

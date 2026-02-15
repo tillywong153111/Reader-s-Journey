@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "npm run assets:vendor",
     "dev": "node scripts/dev.mjs",
     "lint": "node scripts/lint.mjs",
     "test": "node --test",
@@ -13,10 +14,23 @@
     "data:build-modules": "node scripts/build-data-modules.mjs",
     "data:verify": "node scripts/verify-catalog.mjs",
     "data:verify:full": "FULL_VERIFY=1 node scripts/verify-catalog.mjs",
+    "assets:vendor": "node scripts/sync-vendor-assets.mjs",
     "assets:audio": "node scripts/generate-audio-assets.mjs",
+    "test:e2e": "node scripts/e2e-exhaustive.mjs",
+    "test:e2e:headed": "node scripts/e2e-exhaustive.mjs --headed",
+    "visual:baseline": "node scripts/visual-regression.mjs --mode=baseline",
+    "visual:check": "node scripts/visual-regression.mjs --mode=check",
     "data:refresh": "node scripts/fetch-catalog.mjs && node scripts/build-data-modules.mjs && node scripts/verify-catalog.mjs"
   },
   "dependencies": {
+    "howler": "^2.2.4",
+    "lottie-web": "^5.13.0",
+    "phaser": "^3.90.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.58.2",
+    "pngjs": "^7.0.0"
   }
 }

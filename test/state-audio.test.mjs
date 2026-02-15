@@ -10,8 +10,8 @@ test("initial state contains audio profile defaults", () => {
     masterEnabled: true,
     bgmEnabled: true,
     sfxEnabled: true,
-    bgmVolume: 52,
-    sfxVolume: 82,
+    bgmVolume: 46,
+    sfxVolume: 76,
     bgmBootstrapped: false
   });
 });

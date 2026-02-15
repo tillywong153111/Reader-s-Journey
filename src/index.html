@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>读者之旅 Reader's Journey</title>
-    <meta name="description" content="离线阅读成长应用：录入、面板、分享、设置。" />
+    <meta name="description" content="离线阅读成长应用：世界探索、录入、面板、藏书阁、设置。" />
     <meta name="theme-color" content="#0b1220" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -16,21 +16,51 @@
     <div class="shell" id="app-shell">
       <div class="fx-layer" aria-hidden="true">
         <div class="fx-grid"></div>
+        <div class="fx-stars"></div>
         <div class="fx-halo"></div>
       </div>
+      <div id="game-toast-layer" class="game-toast-layer" aria-live="polite" aria-atomic="false"></div>
 
       <header class="app-header">
         <p class="app-kicker">Reader's Journey</p>
         <div class="title-row">
-          <h1 id="app-page-title">录入</h1>
-          <span id="header-level-badge" class="level-badge">Lv.1</span>
+          <h1 id="app-page-title">主世界</h1>
+          <div class="title-meta">
+            <button id="header-share-btn" class="header-icon-btn" type="button" aria-label="打开分享证书"></button>
+            <div id="header-spark-lottie" class="header-spark-lottie" aria-hidden="true"></div>
+            <span id="header-level-badge" class="level-badge">Lv.1</span>
+          </div>
         </div>
-        <p id="app-page-subtitle">搜索并选择一本书加入旅程</p>
+        <p id="app-page-subtitle">在小屋中自由探索并和设施交互，完成阅读成长任务</p>
       </header>
 
       <main class="app-main">
         <section
-          class="view entry-view active"
+          class="view world-view active"
+          data-view="world"
+          data-title="主世界"
+          data-subtitle="在小屋中自由探索，靠近并点击设施完成录入、成长与分享"
+        >
+          <article class="card world-main-card">
+            <div class="world-head">
+              <div class="world-status">
+                <span id="world-level-chip" class="badge">Lv.1</span>
+                <span id="world-book-chip" class="badge">已完成 0 本</span>
+              </div>
+              <div class="world-actions">
+                <button id="world-entry-btn" class="world-action-btn" type="button">登记</button>
+                <button id="world-share-btn" class="world-action-btn" type="button">分享</button>
+              </div>
+            </div>
+            <div id="world-canvas" class="world-canvas" role="img" aria-label="旅者主世界探索场景"></div>
+            <div class="world-hud">
+              <p id="world-zone-hint" class="tip">触控地面可移动；靠近并点击设施即可交互。</p>
+            </div>
+          </article>
+        </section>
+
+        <section
+          class="view entry-view"
           data-view="entry"
           data-title="录入"
           data-subtitle="让每次开卷，都成为一次被铭记的成长"
@@ -48,6 +78,7 @@
               <button id="entry-online-search-btn" class="btn-ghost" type="button">联网搜索</button>
               <button id="entry-custom-mode-btn" class="btn-secondary" type="button">自编录入</button>
             </div>
+            <div id="entry-selection-pill" class="selection-pill hidden" aria-live="polite"></div>
             <div id="entry-selected-book" class="selection-card"></div>
             <div id="entry-custom-fields" class="field-grid two hidden">
               <label>
@@ -99,35 +130,51 @@
           class="view panel-view"
           data-view="panel"
           data-title="面板"
-          data-subtitle="卷轴书架记录每一步成长，点开即可更新进度与感触"
+          data-subtitle="属性与技能在此汇聚，清晰看见阅读成长"
         >
-          <article class="card panel-main-card">
+          <article class="card panel-main-card panel-overview-card">
             <div class="card-head">
-              <h2>卷轴书架（在读 + 已完成）</h2>
-              <button id="panel-shelf-more-btn" class="text-btn" type="button">查看全部</button>
-            </div>
-            <div id="panel-shelf-list" class="scroll-shelf"></div>
-          </article>
-
-          <article class="card mini-card panel-summary-card">
-            <div class="card-head">
-              <h2>旅者属性摘要</h2>
+              <h2>旅者属性</h2>
               <button id="panel-attributes-more-btn" class="text-btn" type="button">查看全部</button>
             </div>
             <div class="panel-core">
               <p class="panel-kicker">旅者档案</p>
               <p id="panel-level-line"></p>
+              <div class="xp-track"><div id="panel-xp-fill" class="xp-fill"></div></div>
             </div>
             <div id="panel-attribute-summary-list" class="attribute-summary-list"></div>
-            <div class="card-head panel-chip-head">
-              <h2>技能与成就摘要</h2>
+          </article>
+
+          <article class="card mini-card panel-summary-card panel-skills-card">
+            <div class="card-head">
+              <h2>技能殿堂</h2>
               <div class="head-actions">
                 <button id="panel-skills-more-btn" class="text-btn" type="button">技能</button>
                 <button id="panel-achievements-more-btn" class="text-btn" type="button">成就</button>
               </div>
             </div>
-            <div id="panel-skill-list" class="chip-list"></div>
+            <div id="panel-skill-list" class="skill-focus-list"></div>
+            <div id="panel-skill-star-map" class="skill-star-map"></div>
+            <p class="panel-mini-label">自动装备星环</p>
+            <div id="panel-skill-auto-slots" class="skill-auto-slots"></div>
+            <p class="panel-mini-label">成就摘要</p>
             <div id="panel-achievement-list" class="chip-list"></div>
+          </article>
+        </section>
+
+        <section
+          class="view shelf-view"
+          data-view="shelf"
+          data-title="藏书阁"
+          data-subtitle="卷轴书架记录在读与已完成，点击即可编辑进度与感触"
+        >
+          <article class="card shelf-main-card panel-main-card">
+            <div class="card-head">
+              <h2>卷轴书架（在读 + 已完成）</h2>
+              <button id="panel-shelf-more-btn" class="text-btn" type="button">查看全部</button>
+            </div>
+            <p class="tip">点击卷轴可展开详情，再点“查看并编辑”进入完整书卷编辑。</p>
+            <div id="panel-shelf-list" class="scroll-shelf"></div>
           </article>
         </section>
 
@@ -169,18 +216,9 @@
               <h2>音频与体验</h2>
               <p id="settings-audio-status" class="tip"></p>
               <div class="button-stack">
-                <button id="settings-audio-master-btn" class="btn-secondary" type="button">主音频：开启</button>
                 <button id="settings-bgm-toggle-btn" class="btn-secondary" type="button">背景音乐：开启</button>
                 <button id="settings-sfx-toggle-btn" class="btn-secondary" type="button">提示音：开启</button>
               </div>
-              <label>
-                背景音乐音量
-                <input id="settings-bgm-volume" type="range" min="0" max="100" step="1" value="52" />
-              </label>
-              <label>
-                提示音音量
-                <input id="settings-sfx-volume" type="range" min="0" max="100" step="1" value="82" />
-              </label>
             </section>
 
             <section class="settings-block">
@@ -211,12 +249,6 @@
         </section>
       </main>
 
-      <nav class="tabbar" aria-label="底部导航">
-        <button class="tab active" data-tab="entry" type="button">录入</button>
-        <button class="tab" data-tab="panel" type="button">面板</button>
-        <button class="tab" data-tab="share" type="button">分享</button>
-        <button class="tab" data-tab="settings" type="button">设置</button>
-      </nav>
     </div>
 
     <dialog id="sheet-dialog" class="sheet-dialog">
@@ -224,7 +256,7 @@
         <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="sheet-head">
           <h2 id="sheet-title">详情</h2>
-          <button id="sheet-close-btn" class="btn-ghost" type="button">关闭</button>
+          <button id="sheet-close-btn" class="btn-ghost" type="button" aria-label="回到世界">回到世界</button>
         </div>
         <div id="sheet-content" class="sheet-content"></div>
       </article>
@@ -240,10 +272,13 @@
         <p>
           如果未来接入云同步或第三方服务，本页面会同步更新并明确说明数据用途与处理方式。
         </p>
-        <button id="privacy-close-btn" class="btn-primary" type="button">关闭</button>
+        <button id="privacy-close-btn" class="btn-primary" type="button">回到世界</button>
       </article>
     </dialog>
 
+    <script src="./assets/vendor/howler.min.js"></script>
+    <script src="./assets/vendor/lottie.min.js"></script>
+    <script src="./assets/vendor/phaser.min.js"></script>
     <script type="module" src="./app.mjs"></script>
   </body>
 </html>

@@ -171,42 +171,42 @@ function synthesizeBgm({
     addAmbientVoice(buffer, {
       frequency: baseFreq,
       gain: padGain * 0.9,
-      lfoHz: 0.0048 + i * 0.0009,
-      driftHz: 0.0028 + i * 0.0005,
+      lfoHz: 0.0014 + i * 0.00035,
+      driftHz: 0.0011 + i * 0.00028,
       phaseOffset: baseFreq * 0.017,
-      harmonicMix: 0.15,
-      detuneCents: -4
+      harmonicMix: 0.08,
+      detuneCents: -3
     });
     addAmbientVoice(buffer, {
       frequency: baseFreq,
       gain: padGain * 0.7,
-      lfoHz: 0.0056 + i * 0.0011,
-      driftHz: 0.0032 + i * 0.0006,
+      lfoHz: 0.0018 + i * 0.00032,
+      driftHz: 0.0014 + i * 0.00026,
       phaseOffset: baseFreq * 0.023,
-      harmonicMix: 0.12,
-      detuneCents: 4
+      harmonicMix: 0.06,
+      detuneCents: 3
     });
   }
 
   addAmbientVoice(buffer, {
     frequency: rootHz * 0.5,
     gain: droneGain,
-    lfoHz: 0.0032,
-    driftHz: 0.0017,
+    lfoHz: 0.001,
+    driftHz: 0.0009,
     phaseOffset: rootHz * 0.031,
-    harmonicMix: 0.06,
+    harmonicMix: 0.03,
     detuneCents: 0
   });
 
   addShimmerLayer(buffer, {
     frequency: rootHz * 4.5,
     gain: shimmerGain,
-    lfoHz: 0.009,
-    driftHz: 0.0037,
+    lfoHz: 0.0028,
+    driftHz: 0.0018,
     phaseOffset: rootHz * 0.012
   });
 
-  applyGlobalEnvelope(buffer, 9000, 10000);
+  applyGlobalEnvelope(buffer, 12000, 12000);
   return normalizeBuffer(buffer, 0.84);
 }
 
@@ -238,27 +238,34 @@ function main() {
     makeTone({ frequency: 1046, durationMs: 220, gain: 0.2 })
   ]);
 
+  const tap = concatSamples([
+    makeTone({ frequency: 1180, durationMs: 40, gain: 0.12, attackMs: 2, releaseMs: 24 }),
+    silence(6),
+    makeTone({ frequency: 920, durationMs: 46, gain: 0.1, attackMs: 2, releaseMs: 30 })
+  ]);
+
   const bgmAstral = synthesizeBgm({
-    rootHz: 220.0,
-    ratios: [1, 1.25, 1.5, 1.875],
-    durationMs: 58000,
-    padGain: 0.031,
-    droneGain: 0.028,
-    shimmerGain: 0.0032
+    rootHz: 196.0,
+    ratios: [1, 1.25, 1.5, 2],
+    durationMs: 72000,
+    padGain: 0.024,
+    droneGain: 0.022,
+    shimmerGain: 0.0014
   });
 
   const bgmSanctum = synthesizeBgm({
-    rootHz: 174.61,
-    ratios: [1, 1.2, 1.498, 1.782],
-    durationMs: 56000,
-    padGain: 0.029,
-    droneGain: 0.03,
-    shimmerGain: 0.0028
+    rootHz: 164.81,
+    ratios: [1, 1.2, 1.5, 1.875],
+    durationMs: 70000,
+    padGain: 0.023,
+    droneGain: 0.024,
+    shimmerGain: 0.0012
   });
 
   writeWav(resolve(outputDir, "entry-success.wav"), entry);
   writeWav(resolve(outputDir, "skill-unlock.wav"), skill);
   writeWav(resolve(outputDir, "level-up.wav"), level);
+  writeWav(resolve(outputDir, "ui-tap.wav"), tap);
   writeWav(resolve(outputDir, "bgm-astral-loop.wav"), bgmAstral);
   writeWav(resolve(outputDir, "bgm-sanctum-loop.wav"), bgmSanctum);
 
