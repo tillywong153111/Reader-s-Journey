@@ -946,17 +946,17 @@ function searchCatalogBooks() {
 
   const query = String(entrySearchQuery || "").trim();
   const queryNorm = normalizeText(query);
-  const catalog = buildOfflineCatalog();
 
   if (!queryNorm) {
-    const items = catalog.slice(0, DEFAULT_SUGGESTION_LIMIT);
     return {
-      items,
-      total: catalog.length,
-      truncated: catalog.length > items.length,
-      message: ""
+      items: [],
+      total: 0,
+      truncated: false,
+      message: "请输入书名 / 作者 / ISBN 后开始检索。"
     };
   }
+
+  const catalog = buildOfflineCatalog();
 
   const hits = [];
   let total = 0;
