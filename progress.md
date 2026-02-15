@@ -84,3 +84,17 @@ Original prompt: 按照这10个图片的风格，执行你的计划（Reader’s
   - `npm run lint` ✅
   - `npm test` ✅
   - `npm run build` ✅
+
+### 2026-02-15 v1.8-F 弹层导航与藏书阁可读性修复（skills: develop-web-game + playwright）
+- 修复藏书阁标题文案：`openSheet("藏书阁（全部）")` 改为 `openSheet("藏书阁")`。
+- 新增弹层“返回上一层”能力（最小历史栈）：
+  - `src/index.html` 在 `sheet-head` 增加 `#sheet-back-btn`，与 `#sheet-close-btn` 并列。
+  - `src/app.mjs` 增加 `sheetHistoryStack` + 快照恢复：支持 `world-entry / world-panel / world-settings / share / search / book-detail / generic` 多层回退。
+  - `closeSheet()` 时清空历史，确保“回到世界”语义稳定。
+- 提升藏书阁书名可读性：
+  - `src/styles.css` 增加 `.scroll-title.scroll-title-portrait` 强覆盖（深色 + 更高字重 + 浅色浮雕投影）。
+  - 同步增强 `.scroll-sub.scroll-sub-portrait` 对比度。
+- Playwright 定向验证：
+  - 世界触发 `shelf` 后标题为“藏书阁”。
+  - 进入书卷详情后“返回”按钮出现，点击可回到藏书阁。
+  - 书名计算样式为 `rgb(61, 37, 14)`，可读性恢复。

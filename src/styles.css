@@ -1775,6 +1775,17 @@ button:hover::after {
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
 }
 
+.scroll-title.scroll-title-portrait {
+  color: #3d250e;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 246, 228, 0.78);
+}
+
+.scroll-sub.scroll-sub-portrait {
+  color: #5f4325;
+  text-shadow: 0 1px 0 rgba(255, 247, 229, 0.56);
+}
+
 .scroll-percent {
   font-size: 10px;
   color: #efd6a2;
@@ -3210,6 +3221,12 @@ dialog::backdrop {
   padding: 0 12px;
 }
 
+.sheet-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .sheet-head h2 {
   font-size: 21px;
   font-weight: 700;
@@ -3219,11 +3236,23 @@ dialog::backdrop {
     0 4px 9px rgba(114, 73, 33, 0.18);
 }
 
+#sheet-back-btn,
 #sheet-close-btn {
   min-height: 38px;
   border-radius: 12px;
   border-width: 2px;
   font-weight: 700;
+}
+
+#sheet-back-btn {
+  min-width: 72px;
+  border-color: rgba(111, 73, 35, 0.36);
+  background: linear-gradient(180deg, rgba(155, 116, 68, 0.94), rgba(125, 88, 49, 0.95));
+  color: #fff5de;
+}
+
+#sheet-back-btn[hidden] {
+  display: none;
 }
 
 .sheet-content {

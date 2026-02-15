@@ -153,6 +153,7 @@ const sheetState = {
   bookUid: "",
   editingReflectionId: ""
 };
+const sheetHistoryStack = [];
 
 const elements = {
   shell: document.querySelector(".shell"),
@@ -230,6 +231,7 @@ const elements = {
   sheetDialog: document.getElementById("sheet-dialog"),
   sheetTitle: document.getElementById("sheet-title"),
   sheetContent: document.getElementById("sheet-content"),
+  sheetBackBtn: document.getElementById("sheet-back-btn"),
   sheetCloseBtn: document.getElementById("sheet-close-btn")
 };
 
@@ -1676,12 +1678,181 @@ function renderShareSheet(feedbackText = "") {
   `;
 }
 
-function openShareSheet() {
+function getSheetFeedbackText() {
+  const feedbackNode = elements.sheetContent?.querySelector(".feedback");
+  if (!(feedbackNode instanceof HTMLElement)) return "";
+  return String(feedbackNode.textContent || "").trim();
+}
+
+function snapshotCurrentSheet() {
+  if (sheetState.type === "none") return null;
+  if (sheetState.type === "generic") {
+    return {
+      type: "generic",
+      title: sheetState.title,
+      html: sheetState.html
+    };
+  }
+  if (sheetState.type === "world-entry") {
+    return {
+      type: "world-entry",
+      feedbackText: getSheetFeedbackText()
+    };
+  }
+  if (sheetState.type === "world-panel") {
+    return { type: "world-panel" };
+  }
+  if (sheetState.type === "world-settings") {
+    return {
+      type: "world-settings",
+      feedbackText: getSheetFeedbackText()
+    };
+  }
+  if (sheetState.type === "search") {
+    return {
+      type: "search",
+      searchItems: [...sheetState.searchItems],
+      searchTotal: sheetState.searchTotal,
+      searchTruncated: sheetState.searchTruncated,
+      searchLoaded: sheetState.searchLoaded,
+      query: sheetState.query,
+      searchMode: sheetState.searchMode
+    };
+  }
+  if (sheetState.type === "book-detail") {
+    return {
+      type: "book-detail",
+      bookUid: sheetState.bookUid,
+      editingReflectionId: sheetState.editingReflectionId,
+      feedbackText: getSheetFeedbackText()
+    };
+  }
+  if (sheetState.type === "share") {
+    return {
+      type: "share",
+      feedbackText: getSheetFeedbackText()
+    };
+  }
+  return null;
+}
+
+function getSheetSnapshotKey(snapshot) {
+  if (!snapshot) return "none";
+  if (snapshot.type === "generic") {
+    return `generic:${snapshot.title || ""}`;
+  }
+  if (snapshot.type === "search") {
+    return `search:${snapshot.searchMode || "offline"}:${snapshot.query || ""}`;
+  }
+  if (snapshot.type === "book-detail") {
+    return `book-detail:${snapshot.bookUid || ""}`;
+  }
+  return snapshot.type;
+}
+
+function syncSheetBackButtonState() {
+  if (!(elements.sheetBackBtn instanceof HTMLButtonElement)) return;
+  const canGoBack = sheetHistoryStack.length > 0;
+  elements.sheetBackBtn.hidden = !canGoBack;
+  elements.sheetBackBtn.disabled = !canGoBack;
+}
+
+function clearSheetHistory() {
+  sheetHistoryStack.length = 0;
+  syncSheetBackButtonState();
+}
+
+function rememberSheetForBack(nextSnapshotKey, skipHistory = false) {
+  if (skipHistory) {
+    syncSheetBackButtonState();
+    return;
+  }
+  if (!(elements.sheetDialog instanceof HTMLElement) || !elements.sheetDialog.hasAttribute("open")) {
+    syncSheetBackButtonState();
+    return;
+  }
+  const current = snapshotCurrentSheet();
+  if (!current) {
+    syncSheetBackButtonState();
+    return;
+  }
+  const currentKey = getSheetSnapshotKey(current);
+  if (nextSnapshotKey && currentKey === nextSnapshotKey) {
+    syncSheetBackButtonState();
+    return;
+  }
+  const last = sheetHistoryStack[sheetHistoryStack.length - 1];
+  if (!last || getSheetSnapshotKey(last) !== currentKey) {
+    sheetHistoryStack.push(current);
+    if (sheetHistoryStack.length > 16) {
+      sheetHistoryStack.shift();
+    }
+  }
+  syncSheetBackButtonState();
+}
+
+function restoreSheetFromSnapshot(snapshot) {
+  if (!snapshot) return;
+  if (snapshot.type === "world-entry") {
+    openWorldEntrySheet(snapshot.feedbackText || "", { skipHistory: true });
+    return;
+  }
+  if (snapshot.type === "world-panel") {
+    openWorldPanelSheet({ skipHistory: true });
+    return;
+  }
+  if (snapshot.type === "world-settings") {
+    openWorldSettingsSheet(snapshot.feedbackText || "", { skipHistory: true });
+    return;
+  }
+  if (snapshot.type === "share") {
+    openShareSheet({ skipHistory: true, feedbackText: snapshot.feedbackText || "" });
+    return;
+  }
+  if (snapshot.type === "search") {
+    openSearchSheet(
+      {
+        items: Array.isArray(snapshot.searchItems) ? snapshot.searchItems : [],
+        total: Number(snapshot.searchTotal) || 0,
+        truncated: Boolean(snapshot.searchTruncated)
+      },
+      snapshot.searchMode || "offline",
+      {
+        skipHistory: true,
+        loaded: Number(snapshot.searchLoaded) || SEARCH_SHEET_PAGE_SIZE,
+        query: snapshot.query || ""
+      }
+    );
+    return;
+  }
+  if (snapshot.type === "book-detail") {
+    openBookDetailSheet(snapshot.bookUid, {
+      skipHistory: true,
+      feedbackText: snapshot.feedbackText || "",
+      editingReflectionId: snapshot.editingReflectionId || ""
+    });
+    return;
+  }
+  if (snapshot.type === "generic") {
+    openSheet(snapshot.title || "详情", snapshot.html || "", { skipHistory: true });
+  }
+}
+
+function goBackSheet() {
+  if (sheetHistoryStack.length === 0) return;
+  const snapshot = sheetHistoryStack.pop();
+  syncSheetBackButtonState();
+  restoreSheetFromSnapshot(snapshot);
+}
+
+function openShareSheet(options = {}) {
+  const { skipHistory = false, feedbackText = "" } = options;
   if (!elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack("share", skipHistory);
   sheetState.type = "share";
   sheetState.bookUid = "";
   sheetState.editingReflectionId = "";
-  renderShareSheet();
+  renderShareSheet(feedbackText);
   elements.headerShareBtn?.classList.add("active");
   audioEngine.playSfx("tap");
   triggerHaptic("light");
@@ -1696,6 +1867,7 @@ function openShareSheet() {
   }
   elements.sheetDialog.setAttribute("open", "");
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function buildCategoryOptionsHtml(selectedCategory = "") {
@@ -1882,8 +2054,10 @@ function refreshWorldEntrySheetSearchSection() {
   }
 }
 
-function openWorldEntrySheet(feedbackText = "") {
+function openWorldEntrySheet(feedbackText = "", options = {}) {
+  const { skipHistory = false } = options;
   if (!elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack("world-entry", skipHistory);
   sheetState.type = "world-entry";
   sheetState.bookUid = "";
   sheetState.editingReflectionId = "";
@@ -1899,6 +2073,7 @@ function openWorldEntrySheet(feedbackText = "") {
   }
   elements.sheetDialog.setAttribute("open", "");
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function syncWorldEntrySheetFormToEntryElements() {
@@ -1987,8 +2162,10 @@ function renderWorldPanelSheet() {
   `;
 }
 
-function openWorldPanelSheet() {
+function openWorldPanelSheet(options = {}) {
+  const { skipHistory = false } = options;
   if (!elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack("world-panel", skipHistory);
   sheetState.type = "world-panel";
   sheetState.bookUid = "";
   sheetState.editingReflectionId = "";
@@ -2004,6 +2181,7 @@ function openWorldPanelSheet() {
   }
   elements.sheetDialog.setAttribute("open", "");
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function openWorldShelfSheet() {
@@ -2059,8 +2237,10 @@ function renderWorldSettingsSheet(feedbackText = "") {
   `;
 }
 
-function openWorldSettingsSheet(feedbackText = "") {
+function openWorldSettingsSheet(feedbackText = "", options = {}) {
+  const { skipHistory = false } = options;
   if (!elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack("world-settings", skipHistory);
   sheetState.type = "world-settings";
   sheetState.bookUid = "";
   sheetState.editingReflectionId = "";
@@ -2076,6 +2256,7 @@ function openWorldSettingsSheet(feedbackText = "") {
   }
   elements.sheetDialog.setAttribute("open", "");
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function getStorageUsage() {
@@ -4352,8 +4533,10 @@ function switchTab(tab, { skipAnimation = false } = {}) {
   });
 }
 
-function openSheet(title, contentHtml) {
+function openSheet(title, contentHtml, options = {}) {
+  const { skipHistory = false } = options;
   if (!elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack(`generic:${title}`, skipHistory);
   audioEngine.playSfx("tap");
   triggerHaptic("light");
   sheetState.type = "generic";
@@ -4370,6 +4553,7 @@ function openSheet(title, contentHtml) {
   }
   elements.sheetDialog.setAttribute("open", "");
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function renderSearchSheet() {
@@ -4410,8 +4594,10 @@ function renderSearchSheet() {
   elements.sheetContent.innerHTML = `${itemsHtml}${footerHtml}${noteHtml}`;
 }
 
-function openSearchSheet(searchData, mode = "offline") {
+function openSearchSheet(searchData, mode = "offline", options = {}) {
+  const { skipHistory = false, loaded = SEARCH_SHEET_PAGE_SIZE, query = String(entrySearchQuery || "").trim() } = options;
   if (!elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack(`search:${mode}:${query}`, skipHistory);
   audioEngine.playSfx("tap");
   triggerHaptic("light");
   sheetState.type = "search";
@@ -4421,8 +4607,8 @@ function openSearchSheet(searchData, mode = "offline") {
   sheetState.searchItems = searchData.items;
   sheetState.searchTotal = searchData.total;
   sheetState.searchTruncated = searchData.truncated;
-  sheetState.searchLoaded = Math.min(SEARCH_SHEET_PAGE_SIZE, searchData.items.length);
-  sheetState.query = String(entrySearchQuery || "").trim();
+  sheetState.searchLoaded = Math.min(Math.max(SEARCH_SHEET_PAGE_SIZE, Number(loaded) || SEARCH_SHEET_PAGE_SIZE), searchData.items.length);
+  sheetState.query = query;
   sheetState.searchMode = mode;
   renderSearchSheet();
 
@@ -4433,11 +4619,13 @@ function openSearchSheet(searchData, mode = "offline") {
   }
   elements.sheetDialog.setAttribute("open", "");
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function closeSheet() {
   if (!elements.sheetDialog) return;
   audioEngine.playSfx("tap");
+  clearSheetHistory();
   sheetState.type = "none";
   sheetState.html = "";
   sheetState.searchItems = [];
@@ -4459,6 +4647,7 @@ function closeSheet() {
     return;
   }
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function onEntrySearchInput() {
@@ -4693,15 +4882,17 @@ function formatReflectionDate(stamp) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
-function openBookDetailSheet(uidValue) {
+function openBookDetailSheet(uidValue, options = {}) {
+  const { skipHistory = false, feedbackText = "", editingReflectionId = "" } = options;
   const book = getBookByUid(uidValue);
   if (!book || !elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack(`book-detail:${book.uid}`, skipHistory);
   audioEngine.playSfx("tap");
   triggerHaptic("medium");
   sheetState.type = "book-detail";
   sheetState.bookUid = book.uid;
-  sheetState.editingReflectionId = "";
-  renderBookDetailSheet();
+  sheetState.editingReflectionId = editingReflectionId;
+  renderBookDetailSheet(feedbackText);
   if (elements.sheetDialog.hasAttribute("open")) {
     syncWorldSceneState();
     return;
@@ -4713,6 +4904,7 @@ function openBookDetailSheet(uidValue) {
   }
   elements.sheetDialog.setAttribute("open", "");
   syncWorldSceneState();
+  syncSheetBackButtonState();
 }
 
 function renderBookDetailSheet(feedbackText = "") {
@@ -4964,7 +5156,7 @@ function onPanelShelfMore() {
         .join("")}
     </div>
   `;
-  openSheet("藏书阁（全部）", html);
+  openSheet("藏书阁", html);
 }
 
 function onPanelSkillsMore() {
@@ -5290,6 +5482,7 @@ function bindEvents() {
 
   elements.settingsResetBtn?.addEventListener("click", resetData);
 
+  elements.sheetBackBtn?.addEventListener("click", goBackSheet);
   elements.sheetCloseBtn?.addEventListener("click", closeSheet);
   elements.sheetDialog?.addEventListener("click", (event) => {
     if (event.target === elements.sheetDialog) {
