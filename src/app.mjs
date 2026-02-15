@@ -1288,11 +1288,13 @@ function addEntryBook() {
 
 function getShelfBooks() {
   const reading = state.books.filter((book) => book.status === "reading");
+  const planned = state.books.filter((book) => book.status === "planned");
   const finished = state.books.filter((book) => book.status === "finished");
   const sortByUpdated = (a, b) => (Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0));
   reading.sort(sortByUpdated);
+  planned.sort(sortByUpdated);
   finished.sort(sortByUpdated);
-  return [...reading, ...finished];
+  return [...reading, ...planned, ...finished];
 }
 
 function getBookByUid(uidValue) {

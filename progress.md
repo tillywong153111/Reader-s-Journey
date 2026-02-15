@@ -98,3 +98,10 @@ Original prompt: 按照这10个图片的风格，执行你的计划（Reader’s
   - 世界触发 `shelf` 后标题为“藏书阁”。
   - 进入书卷详情后“返回”按钮出现，点击可回到藏书阁。
   - 书名计算样式为 `rgb(61, 37, 14)`，可读性恢复。
+
+### 2026-02-15 v1.8-G 藏书阁录入可见性修复
+- 复现问题：新增录入后，藏书阁不变化。
+- 根因：`createBook()` 默认 `status: "planned"`，但 `getShelfBooks()` 只返回 `reading/finished`，导致新录入被过滤。
+- 修复：`getShelfBooks()` 改为返回 `reading + planned + finished`（各组按更新时间倒序）。
+- 文档：README 藏书阁说明更新为“在读 + 待开始 + 已完成”。
+- Playwright 验证：录入前 `countBefore=3`，录入后 `countAfter=4`，截图 `output/playwright/shelf-after-new-entry.png`。
