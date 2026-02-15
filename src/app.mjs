@@ -1800,7 +1800,7 @@ function renderWorldEntrySheet(feedbackText = "") {
         搜索书名 / 作者 / ISBN
         <input id="sheet-world-entry-search-input" type="text" value="${escapeHtml(query)}" placeholder="例如：思考，快与慢" />
       </label>
-      <div class="search-results">${resultHtml}</div>
+      <div id="sheet-world-entry-results" class="search-results">${resultHtml}</div>
       <div class="inline-actions">
         <button id="sheet-world-entry-more-btn" class="btn-ghost" type="button"${canShowMore ? "" : " disabled"}>
           ${searchData?.truncated ? `查看更多结果（共${searchData.total}）` : "查看更多结果"}
@@ -1834,6 +1834,52 @@ function renderWorldEntrySheet(feedbackText = "") {
       </section>
     </section>
   `;
+}
+
+function refreshWorldEntrySheetSearchSection() {
+  if (sheetState.type !== "world-entry" || !elements.sheetContent) return;
+  const query = String(entrySearchQuery || "").trim();
+  const searchData = entryMode === "catalog" ? searchCatalogBooks() : null;
+  const previewLimit = 8;
+  const previewItems = searchData ? searchData.items.slice(0, previewLimit) : [];
+  const resultHtml =
+    entryMode !== "catalog"
+      ? '<p class="tip">当前为自编录入模式，可直接填写书籍信息。</p>'
+      : searchData?.message
+        ? `<div class="search-empty">${escapeHtml(searchData.message)}</div>`
+        : previewItems.length === 0
+          ? '<div class="search-empty">暂无匹配，试试更换关键词或切换自编录入。</div>'
+          : previewItems.map((item) => buildSearchItemHtml(item, query, selectedCatalogKey === item.key, true)).join("");
+
+  const resultsRoot = elements.sheetContent.querySelector("#sheet-world-entry-results");
+  if (resultsRoot instanceof HTMLElement) {
+    resultsRoot.innerHTML = resultHtml;
+  }
+
+  const canShowMore =
+    entryMode === "catalog" && searchData && !searchData.message && searchData.items.length > previewLimit;
+  const moreBtn = elements.sheetContent.querySelector("#sheet-world-entry-more-btn");
+  if (moreBtn instanceof HTMLButtonElement) {
+    moreBtn.disabled = !canShowMore;
+    moreBtn.textContent = searchData?.truncated ? `查看更多结果（共${searchData.total}）` : "查看更多结果";
+  }
+
+  const onlineBtn = elements.sheetContent.querySelector("#sheet-world-entry-online-btn");
+  if (onlineBtn instanceof HTMLButtonElement) {
+    onlineBtn.disabled = entryMode !== "catalog" || query.length < 2 || onlineSearchBusy;
+    onlineBtn.textContent = onlineSearchBusy ? `联网中 ${onlineSearchProgressCompleted}/2` : "联网搜索";
+  }
+
+  if (!selectedCatalogKey) {
+    const selectionPill = elements.sheetContent.querySelector(".sheet-world-entry .selection-pill");
+    if (selectionPill instanceof HTMLElement) {
+      selectionPill.remove();
+    }
+    const addBtn = elements.sheetContent.querySelector("#sheet-world-entry-add-btn");
+    if (addBtn instanceof HTMLButtonElement) {
+      addBtn.textContent = "录入并结算";
+    }
+  }
 }
 
 function openWorldEntrySheet(feedbackText = "") {
@@ -2147,7 +2193,18 @@ function syncWorldSceneState() {
   if (!worldRuntime.scene) return;
   const scene = worldRuntime.scene;
   if (!scene.scene || !scene.physics?.world) return;
-  if (activeTab === "world" && sheetState.type === "none") {
+  const isInteractiveWorld = activeTab === "world" && sheetState.type === "none";
+  const keyboard = scene.input?.keyboard;
+  if (keyboard) {
+    keyboard.enabled = isInteractiveWorld;
+    if (isInteractiveWorld) {
+      keyboard.enableGlobalCapture?.();
+    } else {
+      keyboard.disableGlobalCapture?.();
+      keyboard.resetKeys?.();
+    }
+  }
+  if (isInteractiveWorld) {
     scene.scene.resume();
     scene.physics.world.resume();
     return;
@@ -5459,11 +5516,16 @@ function bindEvents() {
       if (elements.entrySearchInput) {
         elements.entrySearchInput.value = entrySearchQuery;
       }
+      const switchedMode = entryMode !== "catalog";
       if (entryMode !== "catalog") {
         entryMode = "catalog";
       }
       selectedCatalogKey = "";
-      renderWorldEntrySheet();
+      if (switchedMode) {
+        renderWorldEntrySheet();
+      } else {
+        refreshWorldEntrySheetSearchSection();
+      }
       return;
     }
     if (target instanceof HTMLInputElement && target.id === "sheet-share-nickname-input") {
