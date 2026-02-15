@@ -4881,21 +4881,32 @@ function onPanelShelfMore() {
     openSheet("卷轴书架", '<div class="scroll-empty">还没有在读或已完成书籍。</div>');
     return;
   }
-  const html = books
-    .map((book) => {
-      const progress = Math.max(0, Math.min(100, Number(book.progress) || 0));
-      return `
-        <button type="button" class="scroll-card sheet-open-book-detail" data-book-uid="${escapeHtml(book.uid)}">
-          <div class="scroll-card-head">
-            <p class="scroll-title">${escapeHtml(book.title)}</p>
-            <span class="badge">${escapeHtml(formatBookStatus(book))}</span>
-          </div>
-          <p class="scroll-sub">${escapeHtml(book.author)} · ${escapeHtml(CATEGORY_LABELS[book.category] || "通识")}</p>
-          <div class="scroll-track"><div class="scroll-fill" style="width:${progress}%"></div></div>
-        </button>
-      `;
-    })
-    .join("");
+  const html = `
+    <div class="shelf-scroll-grid">
+      ${books
+        .map((book) => {
+          const progress = Math.max(0, Math.min(100, Number(book.progress) || 0));
+          return `
+            <button type="button" class="scroll-card scroll-card-portrait sheet-open-book-detail" data-book-uid="${escapeHtml(book.uid)}">
+              <span class="scroll-card-portrait-roll top" aria-hidden="true"></span>
+              <article class="scroll-card-portrait-paper">
+                <p class="scroll-title scroll-title-portrait">${escapeHtml(book.title)}</p>
+                <p class="scroll-sub scroll-sub-portrait">${escapeHtml(book.author)} · ${escapeHtml(CATEGORY_LABELS[book.category] || "通识")}</p>
+                <div class="scroll-track"><div class="scroll-fill" style="width:${progress}%"></div></div>
+                <p class="scroll-percent scroll-percent-portrait">阅读进度 ${progress}%</p>
+              </article>
+              <span class="scroll-card-portrait-roll bottom" aria-hidden="true"></span>
+              <div class="scroll-book-base" aria-hidden="true">
+                <span class="scroll-book-base-spine"></span>
+                <span class="scroll-book-base-label">书籍</span>
+              </div>
+              <span class="badge scroll-badge-portrait">${escapeHtml(formatBookStatus(book))}</span>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
   openSheet("藏书阁（全部）", html);
 }
 

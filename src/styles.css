@@ -1597,6 +1597,157 @@ button:hover::after {
   overflow: hidden;
 }
 
+.shelf-scroll-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.scroll-card-portrait {
+  min-height: 288px;
+  border-radius: 16px;
+  padding: 10px 10px 12px;
+  gap: 0;
+  grid-template-rows: auto 1fr auto auto;
+  align-content: stretch;
+  border: 1px solid rgba(192, 143, 79, 0.48);
+  background:
+    radial-gradient(circle at 24% 14%, rgba(255, 227, 170, 0.26), rgba(255, 227, 170, 0)),
+    linear-gradient(180deg, rgba(63, 42, 20, 0.96), rgba(48, 32, 16, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 216, 0.18),
+    inset 0 -12px 20px rgba(20, 13, 5, 0.34),
+    0 8px 14px rgba(36, 22, 9, 0.3);
+}
+
+.scroll-card-portrait .scroll-card-portrait-roll {
+  display: block;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(194, 140, 73, 0.46);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 220, 156, 0.24) 0 4px,
+      rgba(101, 68, 31, 0.14) 4px 7px
+    ),
+    linear-gradient(180deg, rgba(150, 106, 54, 0.96), rgba(107, 74, 37, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 242, 209, 0.3),
+    inset 0 -2px 5px rgba(42, 27, 9, 0.42);
+}
+
+.scroll-card-portrait .scroll-card-portrait-roll.top {
+  margin-bottom: 4px;
+}
+
+.scroll-card-portrait .scroll-card-portrait-roll.bottom {
+  margin-top: 4px;
+}
+
+.scroll-card-portrait-paper {
+  border-radius: 12px;
+  border: 1px solid rgba(170, 120, 62, 0.4);
+  padding: 10px 10px 8px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 200px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 248, 234, 0.55), rgba(255, 248, 234, 0)),
+    linear-gradient(180deg, rgba(255, 241, 210, 0.98), rgba(235, 207, 154, 0.96)),
+    repeating-linear-gradient(
+      0deg,
+      rgba(165, 126, 75, 0.08) 0,
+      rgba(165, 126, 75, 0.08) 1px,
+      transparent 1px,
+      transparent 6px
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 251, 241, 0.88),
+    inset 0 -8px 10px rgba(136, 98, 47, 0.14);
+}
+
+.scroll-title-portrait {
+  font-size: 14px;
+  line-height: 1.35;
+  color: #4d3318;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-shadow: none;
+}
+
+.scroll-sub-portrait {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #725235;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.scroll-percent-portrait {
+  margin: 0;
+  font-size: 11px;
+  color: #5d4321;
+}
+
+.scroll-book-base {
+  margin-top: 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(91, 62, 31, 0.46);
+  background:
+    linear-gradient(180deg, rgba(168, 118, 62, 0.96), rgba(128, 87, 44, 0.98)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 213, 151, 0.13) 0,
+      rgba(255, 213, 151, 0.13) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 240, 203, 0.26),
+    0 3px 8px rgba(43, 27, 10, 0.3);
+}
+
+.scroll-book-base-spine {
+  width: 8px;
+  height: 22px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(79, 52, 24, 0.95), rgba(61, 38, 16, 0.98));
+}
+
+.scroll-book-base-label {
+  font-size: 11px;
+  color: #f3e0b8;
+  letter-spacing: 0.06em;
+}
+
+.scroll-badge-portrait {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border-color: rgba(139, 101, 56, 0.48);
+  background: rgba(255, 244, 218, 0.92);
+}
+
+@media (min-width: 900px) {
+  .shelf-scroll-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
+    justify-content: center;
+  }
+}
+
 .scroll-card-head {
   display: flex;
   align-items: center;
