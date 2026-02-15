@@ -465,7 +465,7 @@ async function runShelfFlow(page, scenario) {
     flow.reflectionEditOpened = await clickFirstWithRetry(page, ".sheet-reflection-edit");
     await page.waitForTimeout(180);
     if (await page.locator("#sheet-cancel-reflection-btn").count()) {
-      await page.locator("#sheet-cancel-reflection-btn").click();
+      await clickFirstWithRetry(page, "#sheet-cancel-reflection-btn");
       await page.waitForTimeout(160);
     }
   }

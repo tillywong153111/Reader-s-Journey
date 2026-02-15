@@ -26,6 +26,11 @@ import {
 
 const APP_VERSION = "1.7.0-pixel-rpg";
 const ENTRY_CUSTOM_MULTIPLIER = REWARD_POLICY.entry.custom_entry_multiplier || 0.7;
+const ENTRY_WILL_GAIN_MULTIPLIER = 0.45;
+const ATTRIBUTE_DISPLAY_BASE = 90;
+const ATTRIBUTE_DISPLAY_PER_LEVEL = 12;
+const ATTRIBUTE_DISPLAY_HEADROOM = 40;
+const ATTRIBUTE_DISPLAY_MAX = 360;
 const REGULAR_PREVIEW_LIMIT = 3;
 const COMPACT_PREVIEW_LIMIT = 2;
 const TIGHT_PREVIEW_LIMIT = 1;
@@ -341,27 +346,19 @@ function getAttributeProgressMeta(value) {
     { tier: "B", min: 95, max: 130 },
     { tier: "A", min: 130, max: 180 }
   ];
-  for (const band of bands) {
-    if (score < band.max) {
-      const ratio = (score - band.min) / Math.max(1, band.max - band.min);
-      return {
-        tier: band.tier,
-        min: band.min,
-        max: band.max,
-        barWidth: Math.max(0, Math.min(100, Math.round(ratio * 100)))
-      };
-    }
-  }
-
-  const segmentSize = 60;
-  const segmentIndex = Math.floor((score - 180) / segmentSize);
-  const min = 180 + segmentIndex * segmentSize;
-  const max = min + segmentSize;
-  const ratio = (score - min) / Math.max(1, max - min);
+  const currentBand = bands.find((band) => score < band.max) || { tier: "S", min: 180, max: 240 };
+  const values = ATTRIBUTE_KEYS.map((key) => Math.max(0, Number(state.stats.attributes?.[key] || 0)));
+  const highest = Math.max(...values, score);
+  const levelBase = ATTRIBUTE_DISPLAY_BASE + Math.max(1, Number(state.stats.level) || 1) * ATTRIBUTE_DISPLAY_PER_LEVEL;
+  const displayMax = Math.min(
+    ATTRIBUTE_DISPLAY_MAX,
+    Math.ceil(Math.max(65, levelBase, highest + ATTRIBUTE_DISPLAY_HEADROOM) / 5) * 5
+  );
+  const ratio = score / Math.max(1, displayMax);
   return {
-    tier: "S",
-    min,
-    max,
+    tier: currentBand.tier,
+    min: currentBand.min,
+    max: displayMax,
     barWidth: Math.max(0, Math.min(100, Math.round(ratio * 100)))
   };
 }
@@ -1390,12 +1387,13 @@ function addEntryBook() {
     isNew: true
   });
   const points = Math.max(1, Math.round(reward.points * multiplier));
+  const willGain = Math.max(1, Math.round(points * ENTRY_WILL_GAIN_MULTIPLIER));
   const book = createBook({ ...payload, sourceType });
 
   state.books.unshift(book);
   invalidateCatalogMerge();
   state.todayEntries += 1;
-  state.stats.attributes.will += points;
+  state.stats.attributes.will += willGain;
   const expResult = applyExpGain(state.stats.level, state.stats.exp, points);
   state.stats.level = expResult.level;
   state.stats.exp = expResult.exp;
@@ -1409,7 +1407,7 @@ function addEntryBook() {
   setEntryMode("catalog");
 
   const suffix = sourceType === "custom" ? "（自编 x0.7）" : "";
-  setEntryFeedback(`已录入《${book.title}》，意志 +${points}，经验 +${points}${suffix}。`);
+  setEntryFeedback(`已录入《${book.title}》，意志 +${willGain}，经验 +${points}${suffix}。`);
   lastHonorMessage = `《${book.title}》已登记入册。坚持今天的节奏，你会走得很远。`;
   renderAll();
   triggerShellBurst("entry");
