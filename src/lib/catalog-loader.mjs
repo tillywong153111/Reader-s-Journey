@@ -11,12 +11,19 @@ function toCatalogBook(raw) {
     raw.author_display ||
     (Array.isArray(raw.authors) && raw.authors[0]) ||
     "未知作者";
+  const rawPages = Number(raw.pages);
+  const hasPages = Number.isFinite(rawPages) && rawPages > 0;
+  const provider = String(raw?.source?.provider || "");
+  const pagesEstimated =
+    !hasPages ||
+    (rawPages === 320 && provider === "douban_hot_repo" && !String(raw?.isbn13 || "").trim());
   return {
     key: `${normalizeText(raw.title)}::${normalizeText(author)}`,
     title: raw.title,
     author,
     isbn: raw.isbn13 || "",
-    pages: Math.max(1, Number(raw.pages) || 320),
+    pages: Math.max(1, hasPages ? rawPages : 320),
+    pagesEstimated,
     category: raw.category || "general",
     source: raw.source || null
   };
@@ -79,4 +86,3 @@ export function loadCatalogData() {
   }
   return catalogPromise;
 }
-

@@ -96,43 +96,61 @@ export function distributeAttributeGain(category, baseGain) {
 export function evaluateSkillUnlocks({
   categoryCounts,
   finishedTitles,
+  attributes = {},
+  completedCount = 0,
   existingSkills = []
 }) {
   const unlocked = [];
   const normalizedFinishedTitles = (finishedTitles || []).map((title) =>
     String(title || "").toLowerCase().trim()
   );
+  const unlockedSet = new Set(existingSkills.map((skill) => skill.id));
 
-  for (const rule of SKILL_RULES) {
-    const alreadyUnlocked = existingSkills.some((skill) => skill.id === rule.id);
-    if (alreadyUnlocked) {
-      continue;
-    }
-
-    if (rule.specialTitle || (rule.specialTitles && rule.specialTitles.length > 0)) {
+  function isConditionMet(rule) {
+    if (rule.conditionType === "special_title_any" || rule.specialTitle || (rule.specialTitles && rule.specialTitles.length > 0)) {
       const titles = rule.specialTitles && rule.specialTitles.length > 0
         ? rule.specialTitles
         : [rule.specialTitle];
-      const hit = titles.some((title) =>
+      return titles.some((title) =>
         normalizedFinishedTitles.includes(String(title || "").toLowerCase().trim())
       );
-      if (hit) {
-        unlocked.push({
-          id: rule.id,
-          name: rule.name,
-          description: rule.description
-        });
-      }
-      continue;
     }
 
-    const count = categoryCounts[rule.category] || 0;
-    if (count >= rule.count) {
+    if (rule.conditionType === "category_count") {
+      const count = categoryCounts[rule.category] || 0;
+      return count >= rule.count;
+    }
+
+    if (rule.conditionType === "attribute_threshold") {
+      const current = Number(attributes[rule.attribute] || 0);
+      return current >= Number(rule.value || 0);
+    }
+
+    if (rule.conditionType === "completed_count") {
+      return completedCount >= Number(rule.count || 0);
+    }
+
+    return false;
+  }
+
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const rule of SKILL_RULES) {
+      if (unlockedSet.has(rule.id)) continue;
+      const requires = Array.isArray(rule.requires) ? rule.requires : [];
+      const requiresMet = requires.every((requiredId) => unlockedSet.has(requiredId));
+      if (!requiresMet) continue;
+      if (!isConditionMet(rule)) continue;
       unlocked.push({
         id: rule.id,
         name: rule.name,
-        description: rule.description
+        description: rule.description,
+        path: rule.path || "general",
+        tier: Math.max(1, Number(rule.tier) || 1)
       });
+      unlockedSet.add(rule.id);
+      progress = true;
     }
   }
 
@@ -188,6 +206,8 @@ export function applyProgressReward({
   const newlyUnlockedSkills = evaluateSkillUnlocks({
     categoryCounts: newCategoryCounts,
     finishedTitles: newTitles,
+    attributes: updatedAttributes,
+    completedCount: completedAfterFinish,
     existingSkills: stats.skills
   });
   const allSkills = [...stats.skills, ...newlyUnlockedSkills];

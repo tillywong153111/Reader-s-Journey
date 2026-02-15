@@ -105,3 +105,23 @@ Original prompt: 按照这10个图片的风格，执行你的计划（Reader’s
 - 修复：`getShelfBooks()` 改为返回 `reading + planned + finished`（各组按更新时间倒序）。
 - 文档：README 藏书阁说明更新为“在读 + 待开始 + 已完成”。
 - Playwright 验证：录入前 `countBefore=3`，录入后 `countAfter=4`，截图 `output/playwright/shelf-after-new-entry.png`。
+
+### 2026-02-15 v1.8-H 书卷页数输入修复 + 页数数据透明化
+- 修复书卷详情进度编辑语义：`#sheet-book-progress-number` 从“百分比输入”改为“已读页数输入”。
+- 实现双向联动：
+  - 拖动进度条（百分比）会同步换算页数。
+  - 输入页数会自动换算并回写百分比标签与进度条。
+- 保存逻辑修正：保存时按 `已读页数 / 总页数` 计算目标百分比，再复用既有奖励结算流程。
+- 修复录入台搜索输入焦点稳定性：切模式导致重渲染时，恢复输入焦点与光标位置，避免“输入/删字时跳出输入框”。
+- 补充页数可信度标识：
+  - 离线目录与联网结果新增 `pagesEstimated` 标记。
+  - 搜索结果与选中书籍显示“约320页”用于提示估算值，减少误判为真实页数。
+- 数据检查结论（脚本统计）：
+  - 总书目：`50400`
+  - `320` 页：`37084`（`73.58%`）
+  - `douban_hot_repo`：`31543/31543` 全为 `320` 页（主因）
+  - `openlibrary`：`5541/18857` 为 `320` 页（次因）
+- 验证：
+  - `npm ci` / `npm run lint` / `npm test` / `npm run build` 全通过。
+  - `npm run test:e2e` 通过。
+  - `npm run visual:check` 先因基线差异失败，更新基线后复检通过。

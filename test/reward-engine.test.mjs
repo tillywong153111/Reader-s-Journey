@@ -57,14 +57,47 @@ test("skill unlock handles category and special title", () => {
   const unlocked = evaluateSkillUnlocks({
     categoryCounts: {
       logic: 3,
-      psychology: 0,
-      strategy: 0
+      psychology: 2,
+      strategy: 4
     },
     finishedTitles: ["君主论"],
+    attributes: {
+      insight: 40,
+      will: 40,
+      logic: 40,
+      strategy: 60
+    },
+    completedCount: 4,
     existingSkills: []
   });
+  assert.equal(unlocked.some((item) => item.id === "insight-awakening"), true);
   assert.equal(unlocked.some((item) => item.id === "critical-thinking"), true);
+  assert.equal(unlocked.some((item) => item.id === "game-theory"), true);
   assert.equal(unlocked.some((item) => item.id === "machiavellian"), true);
+});
+
+test("skill unlock respects prerequisite ladder", () => {
+  const unlocked = evaluateSkillUnlocks({
+    categoryCounts: {
+      logic: 0,
+      psychology: 2,
+      strategy: 0
+    },
+    finishedTitles: [],
+    attributes: {
+      insight: 132,
+      will: 172,
+      logic: 30,
+      strategy: 30
+    },
+    completedCount: 6,
+    existingSkills: []
+  });
+  assert.equal(unlocked.some((item) => item.id === "hawk-eye"), true);
+  assert.equal(unlocked.some((item) => item.id === "micro-insight"), true);
+  assert.equal(unlocked.some((item) => item.id === "will-steadfast"), true);
+  assert.equal(unlocked.some((item) => item.id === "steel-will"), true);
+  assert.equal(unlocked.some((item) => item.id === "unyielding-heart"), true);
 });
 
 test("achievement unlock checks thresholds", () => {

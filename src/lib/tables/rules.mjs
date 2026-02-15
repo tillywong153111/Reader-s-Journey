@@ -117,9 +117,115 @@ export const REWARD_POLICIES = {
 
 export const SKILL_RULES_TABLE = [
   {
+    "id": "insight-awakening",
+    "name": "洞察",
+    "path": "insight",
+    "tier": 1,
+    "description": "线索敏感度提升，能更快抓住关键信息。",
+    "unlock_hint": "完成 2 本心理学书籍",
+    "condition": {
+      "type": "category_count",
+      "category": "psychology",
+      "count": 2
+    },
+    "effect": {
+      "insight": 4
+    }
+  },
+  {
+    "id": "hawk-eye",
+    "name": "火眼金睛",
+    "path": "insight",
+    "tier": 2,
+    "requires": ["insight-awakening"],
+    "description": "对信息噪声有更强辨别力，判断更稳定。",
+    "unlock_hint": "前置：洞察；洞察力达到 85",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "insight",
+      "value": 85
+    },
+    "effect": {
+      "insight": 8,
+      "logic": 3
+    }
+  },
+  {
+    "id": "micro-insight",
+    "name": "明察秋毫",
+    "path": "insight",
+    "tier": 3,
+    "requires": ["hawk-eye"],
+    "description": "可从细节中识别模式，洞察层级进一步跃迁。",
+    "unlock_hint": "前置：火眼金睛；洞察力达到 130",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "insight",
+      "value": 130
+    },
+    "effect": {
+      "insight": 12,
+      "strategy": 4
+    }
+  },
+  {
+    "id": "will-steadfast",
+    "name": "意志坚定",
+    "path": "will",
+    "tier": 1,
+    "description": "面对困难时保持节奏，持续执行能力提升。",
+    "unlock_hint": "累计完成 3 本书",
+    "condition": {
+      "type": "completed_count",
+      "count": 3
+    },
+    "effect": {
+      "will": 6
+    }
+  },
+  {
+    "id": "steel-will",
+    "name": "钢铁意志",
+    "path": "will",
+    "tier": 2,
+    "requires": ["will-steadfast"],
+    "description": "长线任务中抗压能力显著增强。",
+    "unlock_hint": "前置：意志坚定；意志力达到 120",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "will",
+      "value": 120
+    },
+    "effect": {
+      "will": 10,
+      "strategy": 3
+    }
+  },
+  {
+    "id": "unyielding-heart",
+    "name": "不屈心志",
+    "path": "will",
+    "tier": 3,
+    "requires": ["steel-will"],
+    "description": "遭遇波动也能稳态推进，形成自驱闭环。",
+    "unlock_hint": "前置：钢铁意志；意志力达到 170",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "will",
+      "value": 170
+    },
+    "effect": {
+      "will": 14,
+      "insight": 4
+    }
+  },
+  {
     "id": "critical-thinking",
-    "name": "批判性思维 Lv.1",
-    "description": "完成 3 本逻辑类书籍后解锁",
+    "name": "批判思维",
+    "path": "logic",
+    "tier": 1,
+    "description": "建立论证框架，减少情绪化判断。",
+    "unlock_hint": "完成 3 本逻辑类书籍",
     "condition": {
       "type": "category_count",
       "category": "logic",
@@ -131,8 +237,12 @@ export const SKILL_RULES_TABLE = [
   },
   {
     "id": "bias-detection",
-    "name": "认知偏差识别",
-    "description": "完成 5 本心理学书籍后解锁",
+    "name": "偏差识别",
+    "path": "logic",
+    "tier": 2,
+    "requires": ["critical-thinking"],
+    "description": "识别常见思维偏差，推理结果更可靠。",
+    "unlock_hint": "前置：批判思维；完成 5 本心理学书籍",
     "condition": {
       "type": "category_count",
       "category": "psychology",
@@ -143,13 +253,34 @@ export const SKILL_RULES_TABLE = [
     }
   },
   {
+    "id": "systems-thinking",
+    "name": "系统推演",
+    "path": "logic",
+    "tier": 3,
+    "requires": ["bias-detection"],
+    "description": "把复杂问题拆分并重构，形成可复用思维模型。",
+    "unlock_hint": "前置：偏差识别；逻辑力达到 130",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "logic",
+      "value": 130
+    },
+    "effect": {
+      "logic": 11,
+      "insight": 3
+    }
+  },
+  {
     "id": "game-theory",
-    "name": "博弈论应用",
-    "description": "完成 10 本战略类书籍后解锁",
+    "name": "博弈应用",
+    "path": "strategy",
+    "tier": 1,
+    "description": "在多方互动中寻找最优策略路径。",
+    "unlock_hint": "完成 4 本战略类书籍",
     "condition": {
       "type": "category_count",
       "category": "strategy",
-      "count": 10
+      "count": 4
     },
     "effect": {
       "strategy": 6
@@ -158,7 +289,11 @@ export const SKILL_RULES_TABLE = [
   {
     "id": "machiavellian",
     "name": "权谋心法",
-    "description": "完成《君主论》或 The Prince 后触发彩蛋技能",
+    "path": "strategy",
+    "tier": 2,
+    "requires": ["game-theory"],
+    "description": "在复杂环境下把握博弈节奏，提升全局控制力。",
+    "unlock_hint": "前置：博弈应用；完成《君主论》或 The Prince",
     "condition": {
       "type": "special_title_any",
       "titles": [
@@ -169,6 +304,24 @@ export const SKILL_RULES_TABLE = [
     "effect": {
       "strategy": 8,
       "insight": 4
+    }
+  },
+  {
+    "id": "grand-strategy",
+    "name": "全局统御",
+    "path": "strategy",
+    "tier": 3,
+    "requires": ["machiavellian"],
+    "description": "具备跨阶段资源统筹能力，行动更具前瞻性。",
+    "unlock_hint": "前置：权谋心法；战略力达到 140",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "strategy",
+      "value": 140
+    },
+    "effect": {
+      "strategy": 12,
+      "logic": 4
     }
   }
 ];

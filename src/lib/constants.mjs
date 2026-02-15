@@ -42,13 +42,28 @@ export const SKILL_RULES = SKILL_RULES_TABLE.map((rule) => {
   const normalized = {
     id: rule.id,
     name: rule.name,
-    description: rule.description
+    description: rule.description,
+    path: rule.path || "general",
+    tier: Math.max(1, Number(rule.tier) || 1),
+    requires: Array.isArray(rule.requires) ? rule.requires : [],
+    unlockHint: rule.unlock_hint || rule.description
   };
   if (rule.condition?.type === "category_count") {
+    normalized.conditionType = "category_count";
     normalized.category = rule.condition.category;
     normalized.count = rule.condition.count;
   }
+  if (rule.condition?.type === "attribute_threshold") {
+    normalized.conditionType = "attribute_threshold";
+    normalized.attribute = rule.condition.attribute;
+    normalized.value = Number(rule.condition.value) || 0;
+  }
+  if (rule.condition?.type === "completed_count") {
+    normalized.conditionType = "completed_count";
+    normalized.count = Number(rule.condition.count) || 0;
+  }
   if (rule.condition?.type === "special_title_any") {
+    normalized.conditionType = "special_title_any";
     normalized.specialTitles = Array.isArray(rule.condition.titles) ? rule.condition.titles : [];
     normalized.specialTitle = normalized.specialTitles[0] || "";
   }

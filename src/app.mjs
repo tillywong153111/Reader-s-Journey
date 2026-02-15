@@ -59,6 +59,14 @@ const WORLD_HOTSPOTS = [
   { id: "settings", label: "工坊", short: "工", type: "settings", x: 1018, y: 2480, color: 0xf5b07b }
 ];
 const ENTRY_CATEGORY_ORDER = ["logic", "psychology", "strategy", "literature", "creativity", "philosophy", "general"];
+const SKILL_PATH_ORDER = ["insight", "will", "logic", "strategy"];
+const SKILL_PATH_LABELS = {
+  insight: "洞察线",
+  will: "意志线",
+  logic: "逻辑线",
+  strategy: "战略线",
+  general: "通识线"
+};
 const HEADER_LOTTIE_PATH = "./assets/animations/header-sparkle.json";
 const DEFAULT_AUDIO_PROFILE = {
   masterEnabled: true,
@@ -309,6 +317,11 @@ function compactLabel(text, max = 11) {
   return `${value.slice(0, max)}…`;
 }
 
+function formatPagesLabel(pages, pagesEstimated = false) {
+  const safePages = Math.max(1, Number(pages) || 320);
+  return pagesEstimated ? `约${safePages}页` : `${safePages}页`;
+}
+
 function getAttributeTier(value) {
   const score = Number(value) || 0;
   if (score >= 180) return "S";
@@ -318,7 +331,53 @@ function getAttributeTier(value) {
   return "D";
 }
 
-function getSkillNodePosition(index, total) {
+function getAttributeProgressMeta(value) {
+  const score = Math.max(0, Math.round(Number(value) || 0));
+  const bands = [
+    { tier: "D", min: 0, max: 65 },
+    { tier: "C", min: 65, max: 95 },
+    { tier: "B", min: 95, max: 130 },
+    { tier: "A", min: 130, max: 180 }
+  ];
+  for (const band of bands) {
+    if (score < band.max) {
+      const ratio = (score - band.min) / Math.max(1, band.max - band.min);
+      return {
+        tier: band.tier,
+        min: band.min,
+        max: band.max,
+        barWidth: Math.max(0, Math.min(100, Math.round(ratio * 100)))
+      };
+    }
+  }
+
+  const segmentSize = 60;
+  const segmentIndex = Math.floor((score - 180) / segmentSize);
+  const min = 180 + segmentIndex * segmentSize;
+  const max = min + segmentSize;
+  const ratio = (score - min) / Math.max(1, max - min);
+  return {
+    tier: "S",
+    min,
+    max,
+    barWidth: Math.max(0, Math.min(100, Math.round(ratio * 100)))
+  };
+}
+
+function getSkillNodePosition(index, total, rule = null) {
+  const path = String(rule?.path || "");
+  const tier = Math.max(1, Number(rule?.tier) || 1);
+  const laneIndex = SKILL_PATH_ORDER.indexOf(path);
+  if (laneIndex >= 0) {
+    const laneCount = SKILL_PATH_ORDER.length;
+    const x = laneCount <= 1 ? 50 : 12 + (laneIndex * 76) / (laneCount - 1);
+    const y = 86 - (Math.min(4, tier) - 1) * 24;
+    return {
+      x: Number(x.toFixed(2)),
+      y: Number(y.toFixed(2))
+    };
+  }
+
   const count = Math.max(1, total);
   const angle = (-Math.PI / 2) + (Math.PI * 2 * index) / count;
   const radius = count <= 4 ? 34 : 38;
@@ -332,6 +391,69 @@ function getSkillNodePosition(index, total) {
 
 function hasCjk(text) {
   return /[\u3400-\u9fff]/.test(String(text || ""));
+}
+
+function getSkillRuleById(skillId) {
+  return SKILL_RULES.find((item) => item.id === skillId) || null;
+}
+
+function getSkillPrerequisiteText(rule) {
+  const requires = Array.isArray(rule?.requires) ? rule.requires : [];
+  if (requires.length === 0) return "前置：无";
+  const unlockedSet = new Set((state.stats.skills || []).map((item) => item.id));
+  const labels = requires.map((id) => {
+    const ref = getSkillRuleById(id);
+    const label = ref?.name || id;
+    return unlockedSet.has(id) ? `${label}✓` : `${label}…`;
+  });
+  return `前置：${labels.join(" → ")}`;
+}
+
+function getSkillConditionProgressText(rule) {
+  const type = String(rule?.conditionType || "");
+  if (type === "category_count") {
+    const counts = getCategoryCounts(state);
+    const current = counts[rule.category] || 0;
+    return `分类进度：${CATEGORY_LABELS[rule.category] || "通识"} ${current}/${rule.count}`;
+  }
+  if (type === "attribute_threshold") {
+    const key = String(rule.attribute || "");
+    const current = Number(state.stats.attributes?.[key] || 0);
+    const target = Number(rule.value || 0);
+    return `属性进度：${ATTRIBUTE_LABELS[key] || key} ${current}/${target}`;
+  }
+  if (type === "completed_count") {
+    const done = getCompletedBooks(state).length;
+    return `完成进度：${done}/${rule.count} 本`;
+  }
+  if (type === "special_title_any") {
+    const titles = Array.isArray(rule.specialTitles) && rule.specialTitles.length > 0
+      ? rule.specialTitles
+      : [rule.specialTitle];
+    const finishedSet = new Set(
+      getCompletedBooks(state).map((book) => String(book.title || "").toLowerCase().trim())
+    );
+    const hit = titles.some((title) => finishedSet.has(String(title || "").toLowerCase().trim()));
+    return `彩蛋进度：${hit ? "已触发" : "未触发"}`;
+  }
+  return "继续推进阅读即可解锁。";
+}
+
+function buildSkillDetailHtml(rule, unlocked) {
+  const pathLabel = SKILL_PATH_LABELS[rule.path] || SKILL_PATH_LABELS.general;
+  const hint = rule.unlockHint || rule.description || "继续推进阅读即可点亮。";
+  const statusText = unlocked ? "已点亮：该技能已进入自动装备星环。" : "尚未点亮：满足条件后会自动解锁。";
+  return `
+    <article class="skill-crest ${unlocked ? "active" : "empty"}">
+      <p class="skill-crest-title">${escapeHtml(rule.name)}</p>
+      <p class="skill-crest-sub">${escapeHtml(rule.description || "继续推进阅读即可点亮。")}</p>
+    </article>
+    <p class="tip">阶梯：${escapeHtml(pathLabel)} · 第 ${Math.max(1, Number(rule.tier) || 1)} 阶</p>
+    <p class="tip">${escapeHtml(hint)}</p>
+    <p class="tip">${escapeHtml(getSkillConditionProgressText(rule))}</p>
+    <p class="tip">${escapeHtml(getSkillPrerequisiteText(rule))}</p>
+    <p class="tip">${escapeHtml(statusText)}</p>
+  `;
 }
 
 function normalizeIsbn13(value) {
@@ -745,7 +867,9 @@ function toOnlineCatalogItemFromOpenLibrary(rawDoc, query) {
   if (!title) return null;
   const isbn = pickOpenLibraryIsbn(rawDoc?.isbn);
   const workKey = String(rawDoc?.key || "");
-  const pageCount = Math.max(40, Math.min(2000, Number(rawDoc?.number_of_pages_median) || 320));
+  const pageRaw = Number(rawDoc?.number_of_pages_median);
+  const hasPageCount = Number.isFinite(pageRaw) && pageRaw > 0;
+  const pageCount = Math.max(40, Math.min(2000, hasPageCount ? pageRaw : 320));
   const category = inferCategoryFromText(`${title} ${author} ${query}`);
   return {
     key: buildCatalogKey(title, author),
@@ -753,6 +877,7 @@ function toOnlineCatalogItemFromOpenLibrary(rawDoc, query) {
     author,
     isbn,
     pages: pageCount,
+    pagesEstimated: !hasPageCount,
     category,
     source: {
       provider: "openlibrary-live",
@@ -778,7 +903,9 @@ function toOnlineCatalogItemFromGoogle(rawDoc, query) {
       break;
     }
   }
-  const pageCount = Math.max(40, Math.min(2000, Number(volume.pageCount) || 320));
+  const pageRaw = Number(volume.pageCount);
+  const hasPageCount = Number.isFinite(pageRaw) && pageRaw > 0;
+  const pageCount = Math.max(40, Math.min(2000, hasPageCount ? pageRaw : 320));
   const categories = Array.isArray(volume.categories) ? volume.categories.join(" ") : "";
   const category = inferCategoryFromText(`${title} ${author} ${categories} ${query}`);
   return {
@@ -787,6 +914,7 @@ function toOnlineCatalogItemFromGoogle(rawDoc, query) {
     author,
     isbn,
     pages: pageCount,
+    pagesEstimated: !hasPageCount,
     category,
     source: {
       provider: "googlebooks-live",
@@ -1088,7 +1216,7 @@ function renderSelectedBookCard() {
   elements.entrySelectedBook.classList.remove("hidden");
   elements.entrySelectedBook.innerHTML = `
     <p class="selection-title">${escapeHtml(selected.title)}</p>
-    <p class="selection-sub">${escapeHtml(selected.author)} · ${escapeHtml(CATEGORY_LABELS[selected.category] || "通识")} · ${selected.pages}页</p>
+    <p class="selection-sub">${escapeHtml(selected.author)} · ${escapeHtml(CATEGORY_LABELS[selected.category] || "通识")} · ${formatPagesLabel(selected.pages, Boolean(selected.pagesEstimated))}</p>
   `;
   if (elements.entrySelectionPill) {
     elements.entrySelectionPill.classList.remove("hidden");
@@ -1121,10 +1249,11 @@ function pulseSelectionAffordance() {
 
 function buildSearchItemHtml(item, query, active, sheetMode = false) {
   const sourceLabel = item.source?.manual_online ? "联网" : "离线";
+  const pagesText = formatPagesLabel(item.pages, Boolean(item.pagesEstimated));
   return `
     <button type="button" class="search-item${active ? " active" : ""}${sheetMode ? " sheet-select-book" : ""}" data-catalog-key="${escapeHtml(item.key)}">
       <p class="search-item-title">${highlightMatch(item.title, query)}</p>
-      <p class="search-item-sub">${highlightMatch(item.author, query)} · ${escapeHtml(CATEGORY_LABELS[item.category] || "通识")} · ${item.pages}页 · ${sourceLabel}</p>
+      <p class="search-item-sub">${highlightMatch(item.author, query)} · ${escapeHtml(CATEGORY_LABELS[item.category] || "通识")} · ${pagesText} · ${sourceLabel}</p>
     </button>
   `;
 }
@@ -1319,15 +1448,15 @@ function formatBookStatus(book) {
 }
 
 function buildAttributeRowsHtml(keys = ATTRIBUTE_KEYS) {
-  const maxAttr = Math.max(50, ...ATTRIBUTE_KEYS.map((key) => state.stats.attributes[key] || 0));
   return keys.map((key) => {
     const value = state.stats.attributes[key] || 0;
-    const width = Math.max(4, Math.round((value / maxAttr) * 100));
+    const meta = getAttributeProgressMeta(value);
+    const width = value > 0 ? Math.max(2, meta.barWidth) : 0;
     return `
       <div class="attr-row">
         <span class="attr-label"><img class="attr-icon" src="./assets/icons/${key}.svg" alt="" />${ATTRIBUTE_LABELS[key]}</span>
         <div class="attr-track"><div class="attr-fill" style="width:${width}%"></div></div>
-        <span class="attr-value" data-attr-key="${key}" data-attr-value="${value}">${value}</span>
+        <span class="attr-value" data-attr-key="${key}" data-attr-value="${value}">${value}/${meta.max}</span>
       </div>
     `;
   }).join("");
@@ -1430,17 +1559,17 @@ function renderPanel() {
     elements.panelXpFill.style.width = `${Math.max(0, Math.min(100, xpPercent))}%`;
   }
 
-  const maxAttr = Math.max(100, ...ATTRIBUTE_KEYS.map((key) => state.stats.attributes[key] || 0));
   elements.panelAttributeSummaryList.innerHTML = ATTRIBUTE_KEYS
     .map((key) => {
       const value = state.stats.attributes[key] || 0;
-      const width = Math.max(6, Math.round((value / maxAttr) * 100));
+      const meta = getAttributeProgressMeta(value);
+      const width = value > 0 ? Math.max(2, meta.barWidth) : 0;
       const tier = getAttributeTier(value);
       return `
         <article class="attr-rpg-row tier-${tier.toLowerCase()}">
           <div class="attr-rpg-head">
             <span class="attr-rpg-label"><img class="attr-icon" src="./assets/icons/${key}.svg" alt="" />${escapeHtml(ATTRIBUTE_LABELS[key])}</span>
-            <span class="attr-rpg-tier">T${tier}</span>
+            <span class="attr-rpg-tier">T${tier} · ${value}/${meta.max}</span>
           </div>
           <div class="attr-rpg-body">
             <b class="attr-rpg-value" data-attr-key="${key}" data-attr-value="${value}">${value}</b>
@@ -1464,19 +1593,21 @@ function renderPanel() {
   const autoIds = new Set(autoSkills.map((skill) => skill.id));
   elements.panelSkillList.innerHTML = `
     <article class="skill-crest ${unlockedSkills.length > 0 ? "active" : "empty"}">
-      <p class="skill-crest-title">${unlockedSkills.length > 0 ? `星图共鸣 ${unlockedSkills.length}/${SKILL_RULES.length}` : "尚未点亮技能星"} </p>
-      <p class="skill-crest-sub">${unlockedSkills.length > 0 ? "每次阅读结算都会继续点亮星图，自动装备最强 3 星。" : "继续推进阅读进度，即可点亮第一颗技能星。"}</p>
+      <p class="skill-crest-title">${unlockedSkills.length > 0 ? `阶梯共鸣 ${unlockedSkills.length}/${SKILL_RULES.length}` : "尚未点亮技能星"} </p>
+      <p class="skill-crest-sub">${unlockedSkills.length > 0 ? "技能沿阶梯逐层解锁，自动装备最近解锁的 3 星。" : "继续推进阅读进度，即可点亮第一阶技能。"}</p>
     </article>
   `;
 
   if (elements.panelSkillStarMap) {
     elements.panelSkillStarMap.innerHTML = SKILL_RULES
       .map((rule, index) => {
-        const position = getSkillNodePosition(index, SKILL_RULES.length);
+        const position = getSkillNodePosition(index, SKILL_RULES.length, rule);
         const unlocked = unlockedById.has(rule.id);
         const equipped = autoIds.has(rule.id);
         const classes = [
           "skill-star-node",
+          `path-${escapeHtml(rule.path || "general")}`,
+          `tier-${Math.max(1, Number(rule.tier) || 1)}`,
           unlocked ? "unlocked" : "locked",
           equipped ? "equipped" : "",
           panelSkillPulseId && panelSkillPulseId === rule.id ? "pulse" : ""
@@ -1491,6 +1622,7 @@ function renderPanel() {
             style="--x:${position.x}%; --y:${position.y}%"
             aria-label="${escapeHtml(rule.name)}"
           >
+            <span class="skill-star-tier">T${Math.max(1, Number(rule.tier) || 1)}</span>
             <span class="skill-star-core" aria-hidden="true"></span>
             <span class="skill-star-name">${escapeHtml(rule.name)}</span>
           </button>
@@ -1905,7 +2037,7 @@ function renderWorldEntrySheet(feedbackText = "") {
         <div class="selection-pill">
           <span class="selection-pill-kicker">已选择</span>
           <strong>${escapeHtml(selected.title)}</strong>
-          <span class="selection-pill-sub">${escapeHtml(selected.author)} · ${selected.pages}页</span>
+          <span class="selection-pill-sub">${escapeHtml(selected.author)} · ${formatPagesLabel(selected.pages, Boolean(selected.pagesEstimated))}</span>
         </div>
       `
       : "";
@@ -2122,8 +2254,13 @@ function renderWorldPanelSheet() {
   const topSkills = unlocked.slice(-3).reverse();
 
   const skillStarHtml = SKILL_RULES.map((rule, index) => {
-    const pos = getSkillNodePosition(index, SKILL_RULES.length);
-    const classes = ["skill-star-node", unlockedMap.has(rule.id) ? "unlocked" : "locked"].join(" ");
+    const pos = getSkillNodePosition(index, SKILL_RULES.length, rule);
+    const classes = [
+      "skill-star-node",
+      `path-${escapeHtml(rule.path || "general")}`,
+      `tier-${Math.max(1, Number(rule.tier) || 1)}`,
+      unlockedMap.has(rule.id) ? "unlocked" : "locked"
+    ].join(" ");
     return `
       <button
         type="button"
@@ -2131,6 +2268,7 @@ function renderWorldPanelSheet() {
         data-skill-id="${escapeHtml(rule.id)}"
         style="--x:${pos.x}%; --y:${pos.y}%"
       >
+        <span class="skill-star-tier">T${Math.max(1, Number(rule.tier) || 1)}</span>
         <span class="skill-star-core" aria-hidden="true"></span>
         <span class="skill-star-name">${escapeHtml(rule.name)}</span>
       </button>
@@ -4942,7 +5080,12 @@ function renderBookDetailSheet(feedbackText = "") {
         .join("")
     : '<div class="scroll-empty">还没有感触记录。写下一句今日心得吧。</div>';
 
+  const totalPages = Math.max(1, Number(book.pages) || 1);
   const progressValue = Math.max(0, Math.min(100, Number(book.progress) || 0));
+  const readPages = Math.max(
+    0,
+    Math.min(totalPages, Number(book.progressPages) || Math.round((totalPages * progressValue) / 100))
+  );
   elements.sheetTitle.textContent = "书卷详情";
   elements.sheetContent.innerHTML = `
     <section class="sheet-book-detail">
@@ -4957,10 +5100,19 @@ function renderBookDetailSheet(feedbackText = "") {
         </div>
         <input id="sheet-book-progress-range" type="range" min="0" max="100" value="${progressValue}" />
         <div class="sheet-progress-row">
-          <input id="sheet-book-progress-number" type="number" min="0" max="100" value="${progressValue}" />
+          <input
+            id="sheet-book-progress-number"
+            type="number"
+            min="0"
+            max="${totalPages}"
+            value="${readPages}"
+            inputmode="numeric"
+            aria-label="已读页数"
+          />
           <button type="button" class="btn-primary" id="sheet-save-progress-btn">保存进度</button>
         </div>
-        <p id="sheet-book-pages-label" class="tip">已读 ${book.progressPages || 0} / ${book.pages} 页</p>
+        <p class="tip">输入已读页数，进度条会自动换算百分比。</p>
+        <p id="sheet-book-pages-label" class="tip">已读 ${readPages} / ${totalPages} 页</p>
       </section>
       <section class="sheet-reflection-editor">
         <label>
@@ -4989,14 +5141,20 @@ function syncBookDetailProgressFromInput(source) {
   const pagesLabel = elements.sheetContent?.querySelector("#sheet-book-pages-label");
   const book = getBookByUid(sheetState.bookUid);
   if (!(range instanceof HTMLInputElement) || !(numberInput instanceof HTMLInputElement) || !book) return;
-  const value = Math.max(0, Math.min(100, Number(source instanceof HTMLInputElement ? source.value : range.value) || 0));
-  range.value = String(value);
-  numberInput.value = String(value);
+  const totalPages = Math.max(1, Number(book.pages) || 1);
+  const sourceValue = source instanceof HTMLInputElement ? source.value : range.value;
+  const isPagesInput = source instanceof HTMLInputElement && source.id === "sheet-book-progress-number";
+  const pagesValue = isPagesInput
+    ? Math.max(0, Math.min(totalPages, Math.round(Number(sourceValue) || 0)))
+    : Math.round((totalPages * (Math.max(0, Math.min(100, Number(sourceValue) || 0)))) / 100);
+  const progressValue = Math.max(0, Math.min(100, Math.round((pagesValue / totalPages) * 100)));
+  range.value = String(progressValue);
+  numberInput.value = String(pagesValue);
   if (label instanceof HTMLElement) {
-    label.textContent = `${value}%`;
+    label.textContent = `${progressValue}%`;
   }
   if (pagesLabel instanceof HTMLElement) {
-    pagesLabel.textContent = `已读 ${Math.round((book.pages * value) / 100)} / ${book.pages} 页`;
+    pagesLabel.textContent = `已读 ${pagesValue} / ${totalPages} 页`;
   }
 }
 
@@ -5004,7 +5162,10 @@ function handleBookProgressSave() {
   const book = getBookByUid(sheetState.bookUid);
   const numberInput = elements.sheetContent?.querySelector("#sheet-book-progress-number");
   if (!book || !(numberInput instanceof HTMLInputElement)) return;
-  const nextProgress = Math.max(0, Math.min(100, Number(numberInput.value) || 0));
+  const totalPages = Math.max(1, Number(book.pages) || 1);
+  const readPages = Math.max(0, Math.min(totalPages, Math.round(Number(numberInput.value) || 0)));
+  numberInput.value = String(readPages);
+  const nextProgress = Math.max(0, Math.min(100, Math.round((readPages / totalPages) * 100)));
   let update = applyBookProgressUpdate(book, nextProgress);
   if (!update.ok && update.code === "decrease") {
     const confirmed = window.confirm("你正在回退进度，这将作为手动校正且不会发放奖励。是否继续？");
@@ -5162,24 +5323,22 @@ function onPanelShelfMore() {
 }
 
 function onPanelSkillsMore() {
-  const html =
-    state.stats.skills.length > 0
-      ? state.stats.skills
-          .map(
-            (skill) => `
-              <article class="skill-crest active">
-                <p class="skill-crest-title">${escapeHtml(skill.name)}</p>
-                <p class="skill-crest-sub">${escapeHtml(skill.description || "已掌握，可持续通过阅读强化。")}</p>
-              </article>
-            `
-          )
-          .join("")
-      : `
-        <article class="skill-crest empty">
-          <p class="skill-crest-title">尚未解锁技能</p>
-          <p class="skill-crest-sub">继续完成阅读目标即可解锁。</p>
+  const unlockedSet = new Set((state.stats.skills || []).map((item) => item.id));
+  const html = SKILL_RULES
+    .map((rule) => {
+      const unlocked = unlockedSet.has(rule.id);
+      const pathLabel = SKILL_PATH_LABELS[rule.path] || SKILL_PATH_LABELS.general;
+      return `
+        <article class="skill-crest ${unlocked ? "active" : "empty"}">
+          <p class="skill-crest-title">${escapeHtml(rule.name)} · 第${Math.max(1, Number(rule.tier) || 1)}阶</p>
+          <p class="skill-crest-sub">${escapeHtml(rule.description || "已掌握，可持续通过阅读强化。")}</p>
+          <p class="tip">${escapeHtml(pathLabel)} · ${escapeHtml(rule.unlockHint || "持续阅读可解锁")}</p>
+          <p class="tip">${escapeHtml(getSkillConditionProgressText(rule))}</p>
+          <p class="tip">${escapeHtml(getSkillPrerequisiteText(rule))}</p>
         </article>
       `;
+    })
+    .join("");
   openSheet("全部技能", html);
 }
 
@@ -5418,16 +5577,10 @@ function bindEvents() {
     if (!(starNode instanceof HTMLButtonElement)) return;
     const skillId = starNode.dataset.skillId;
     if (!skillId) return;
-    const rule = SKILL_RULES.find((item) => item.id === skillId);
+    const rule = getSkillRuleById(skillId);
     if (!rule) return;
     const unlocked = state.stats.skills.some((item) => item.id === skillId);
-    const html = `
-      <article class="skill-crest ${unlocked ? "active" : "empty"}">
-        <p class="skill-crest-title">${escapeHtml(rule.name)}</p>
-        <p class="skill-crest-sub">${escapeHtml(rule.description || "继续推进阅读即可点亮。")}</p>
-      </article>
-      <p class="tip">${unlocked ? "已点亮：该技能已进入自动装备星环。" : "尚未点亮：持续阅读将逐步触发该技能。"} </p>
-    `;
+    const html = buildSkillDetailHtml(rule, unlocked);
     openSheet("技能星详情", html);
   });
   elements.panelSkillsMoreBtn?.addEventListener("click", onPanelSkillsMore);
@@ -5563,19 +5716,10 @@ function bindEvents() {
     if (worldSkillButton instanceof HTMLButtonElement) {
       const skillId = worldSkillButton.dataset.skillId;
       if (!skillId) return;
-      const rule = SKILL_RULES.find((item) => item.id === skillId);
+      const rule = getSkillRuleById(skillId);
       if (!rule) return;
       const unlocked = state.stats.skills.some((item) => item.id === skillId);
-      openSheet(
-        "技能星详情",
-        `
-          <article class="skill-crest ${unlocked ? "active" : "empty"}">
-            <p class="skill-crest-title">${escapeHtml(rule.name)}</p>
-            <p class="skill-crest-sub">${escapeHtml(rule.description || "继续推进阅读即可点亮。")}</p>
-          </article>
-          <p class="tip">${unlocked ? "已点亮：该技能已进入自动装备星环。" : "尚未点亮：持续阅读将逐步触发该技能。"}</p>
-        `
-      );
+      openSheet("技能星详情", buildSkillDetailHtml(rule, unlocked));
       return;
     }
 
@@ -5707,6 +5851,7 @@ function bindEvents() {
   elements.sheetContent?.addEventListener("input", (event) => {
     const target = event.target;
     if (target instanceof HTMLInputElement && target.id === "sheet-world-entry-search-input") {
+      const caret = typeof target.selectionStart === "number" ? target.selectionStart : target.value.length;
       entrySearchQuery = target.value || "";
       if (elements.entrySearchInput) {
         elements.entrySearchInput.value = entrySearchQuery;
@@ -5718,6 +5863,12 @@ function bindEvents() {
       selectedCatalogKey = "";
       if (switchedMode) {
         renderWorldEntrySheet();
+        const nextInput = elements.sheetContent?.querySelector("#sheet-world-entry-search-input");
+        if (nextInput instanceof HTMLInputElement) {
+          nextInput.focus({ preventScroll: true });
+          const nextCaret = Math.max(0, Math.min(caret, nextInput.value.length));
+          nextInput.setSelectionRange(nextCaret, nextCaret);
+        }
       } else {
         refreshWorldEntrySheetSearchSection();
       }
