@@ -67,3 +67,20 @@ Original prompt: 按照这10个图片的风格，执行你的计划（Reader’s
 
 ## TODO（最终）
 - [x] 更新 `docs/assets-license.md`（补充 v1.7 像素世界素材策略与目录说明）。
+
+### 2026-02-15 v1.8-E UI 视觉打磨（skills: develop-web-game + playwright）
+- 检查并确认可用 skill：`develop-web-game`、`playwright`、`figma`、`figma-implement-design`、`screenshot`；当前任务采用 `develop-web-game + playwright`。
+- 完成全局视觉增强（主要改 `src/styles.css`，玩法不变）：
+  - 世界 HUD：顶部状态徽章/登记分享按钮强化为经营风按钮，增加质感层次与点击反馈一致性。
+  - 主卡片与按钮体系：统一木纹纸感边框、阴影、圆角和字体权重。
+  - 录入列表可读性：`search-item` 标题与副标题改为双行截断，避免窄屏半截难读。
+  - Sheet：增加卷轴侧边导轨、标题牌和关闭按钮质感，提升“卷轴弹层”观感。
+  - 分享/设置卡片：补充章纹与层次细节，统一到木质卷轴视觉语言。
+- Playwright 回归：
+  - 运行 `npm run test:e2e` 并人工检查最新截图（移动端+桌面）。
+  - 重点确认：文字完整、按钮可读、弹层无裁切。
+- 命令链验证：
+  - `npm ci` ✅
+  - `npm run lint` ✅
+  - `npm test` ✅
+  - `npm run build` ✅
