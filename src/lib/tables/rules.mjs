@@ -169,6 +169,41 @@ export const SKILL_RULES_TABLE = [
     }
   },
   {
+    "id": "pattern-foresight",
+    "name": "模式预判",
+    "path": "insight",
+    "tier": 4,
+    "requires": ["micro-insight"],
+    "description": "从碎片信息中提炼模式，提前识别风险与机会。",
+    "unlock_hint": "前置：明察秋毫；累计完成 10 本书",
+    "condition": {
+      "type": "completed_count",
+      "count": 10
+    },
+    "effect": {
+      "insight": 14,
+      "strategy": 5
+    }
+  },
+  {
+    "id": "truth-gaze",
+    "name": "真知凝视",
+    "path": "insight",
+    "tier": 5,
+    "requires": ["pattern-foresight"],
+    "description": "穿透表象直达核心矛盾，形成高维洞察能力。",
+    "unlock_hint": "前置：模式预判；洞察力达到 210",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "insight",
+      "value": 210
+    },
+    "effect": {
+      "insight": 18,
+      "logic": 6
+    }
+  },
+  {
     "id": "will-steadfast",
     "name": "意志坚定",
     "path": "will",
@@ -217,6 +252,41 @@ export const SKILL_RULES_TABLE = [
     "effect": {
       "will": 14,
       "insight": 4
+    }
+  },
+  {
+    "id": "mind-fortress",
+    "name": "心志壁垒",
+    "path": "will",
+    "tier": 4,
+    "requires": ["unyielding-heart"],
+    "description": "压力环境中维持长期投入，执行力不受波动干扰。",
+    "unlock_hint": "前置：不屈心志；累计完成 12 本书",
+    "condition": {
+      "type": "completed_count",
+      "count": 12
+    },
+    "effect": {
+      "will": 16,
+      "strategy": 4
+    }
+  },
+  {
+    "id": "titan-will",
+    "name": "钢魂不灭",
+    "path": "will",
+    "tier": 5,
+    "requires": ["mind-fortress"],
+    "description": "形成长期主义心智，面对高压任务仍能稳定推进。",
+    "unlock_hint": "前置：心志壁垒；意志力达到 220",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "will",
+      "value": 220
+    },
+    "effect": {
+      "will": 20,
+      "insight": 5
     }
   },
   {
@@ -271,6 +341,41 @@ export const SKILL_RULES_TABLE = [
     }
   },
   {
+    "id": "model-synthesis",
+    "name": "模型合成",
+    "path": "logic",
+    "tier": 4,
+    "requires": ["systems-thinking"],
+    "description": "将分散结论重构成可复用模型，提升复杂问题处理效率。",
+    "unlock_hint": "前置：系统推演；逻辑力达到 165",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "logic",
+      "value": 165
+    },
+    "effect": {
+      "logic": 14,
+      "strategy": 5
+    }
+  },
+  {
+    "id": "first-principle",
+    "name": "第一性洞见",
+    "path": "logic",
+    "tier": 5,
+    "requires": ["model-synthesis"],
+    "description": "回到问题原点重新推演，构建跨领域推理能力。",
+    "unlock_hint": "前置：模型合成；累计完成 20 本书",
+    "condition": {
+      "type": "completed_count",
+      "count": 20
+    },
+    "effect": {
+      "logic": 18,
+      "insight": 6
+    }
+  },
+  {
     "id": "game-theory",
     "name": "博弈应用",
     "path": "strategy",
@@ -322,6 +427,41 @@ export const SKILL_RULES_TABLE = [
     "effect": {
       "strategy": 12,
       "logic": 4
+    }
+  },
+  {
+    "id": "scenario-sandbox",
+    "name": "局势沙盘",
+    "path": "strategy",
+    "tier": 4,
+    "requires": ["grand-strategy"],
+    "description": "可在多种局势中进行策略预演，减少决策失误。",
+    "unlock_hint": "前置：全局统御；累计完成 15 本书",
+    "condition": {
+      "type": "completed_count",
+      "count": 15
+    },
+    "effect": {
+      "strategy": 15,
+      "logic": 5
+    }
+  },
+  {
+    "id": "dominion-orchestration",
+    "name": "统御编排",
+    "path": "strategy",
+    "tier": 5,
+    "requires": ["scenario-sandbox"],
+    "description": "将资源、节奏与目标统一编排，形成高阶统御能力。",
+    "unlock_hint": "前置：局势沙盘；战略力达到 220",
+    "condition": {
+      "type": "attribute_threshold",
+      "attribute": "strategy",
+      "value": 220
+    },
+    "effect": {
+      "strategy": 20,
+      "will": 6
     }
   }
 ];

@@ -55,7 +55,7 @@ function pickIsbn13(list) {
 
 function sanitizePages(value) {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 320;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return Math.max(40, Math.min(2000, Math.round(parsed)));
 }
 
@@ -72,6 +72,7 @@ function toBook(doc, category, subject) {
   const workKey = String(doc.key || "");
   if (!workKey) return null;
 
+  const pages = sanitizePages(doc.number_of_pages_median);
   return {
     book_id: isbn13 || `ol-${workKey.replace(/\//g, "-")}`,
     title,
@@ -79,7 +80,8 @@ function toBook(doc, category, subject) {
     authors: [author],
     author_display: author,
     isbn13,
-    pages: sanitizePages(doc.number_of_pages_median),
+    pages,
+    pages_estimated: pages <= 0 || pages === 320,
     category,
     language:
       Array.isArray(doc.language) && doc.language[0]
@@ -294,4 +296,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

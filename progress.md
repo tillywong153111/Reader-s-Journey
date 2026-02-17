@@ -125,3 +125,83 @@ Original prompt: 按照这10个图片的风格，执行你的计划（Reader’s
   - `npm ci` / `npm run lint` / `npm test` / `npm run build` 全通过。
   - `npm run test:e2e` 通过。
   - `npm run visual:check` 先因基线差异失败，更新基线后复检通过。
+
+### 2026-02-16 v1.8-I 技能星图阶梯化扩展（skills: develop-web-game + playwright）
+- 技能规则扩展为 4 条路径 × 5 阶（共 20 技能），新增 T4/T5 进阶节点与前置依赖。
+- 星图节点定位改为动态 tier 间距（基于 `SKILL_MAX_TIER`），不再固定 4 层。
+- 新增路径阶梯进度卡：每条路径显示 `已解锁/总阶数`、下一阶名称与条件进度。
+- 技能明细改为按路径分组、组内按阶排序，强化“阶梯式成长”可读性。
+- e2e 稳定性修复：`scripts/e2e-exhaustive.mjs` 中书卷感触输入从 `count()` 判定改为 `isVisible()` 判定，规避 DOM 存在但不可编辑导致的 `locator.fill` 超时。
+- 验证结果：
+  - `npm ci` ✅
+  - `npm run lint` ✅
+  - `npm test` ✅
+  - `npm run build` ✅
+  - `npm run test:e2e` ✅
+  - `npm run test:e2e:headed` ✅
+  - `npm run visual:baseline` ✅（因技能界面视觉升级，刷新基线）
+  - `npm run visual:check` ✅
+
+### 2026-02-16 v1.8-J 全局竖屏化（手机单手优先）
+- 统一 UI 竖屏框：`src/styles.css` 新增 `--app-frame-width` 变量，`.shell` 从铺满 `100vw` 改为居中竖向画幅。
+- 统一弹层竖屏框：`.sheet-dialog` 改为固定定位并按 `--app-frame-width` 约束宽度，避免桌面/横屏全宽展开。
+- PWA 方向声明：`src/manifest.webmanifest` 增加 `"orientation": "portrait"`。
+- 穷尽测试补充：`scripts/e2e-exhaustive.mjs` 新增 `collectShellFrameMetrics()`，并将“壳层竖屏 + 居中”纳入 pass 条件。
+- 文档同步：`README.md` 新增 `v1.7.3 全局竖屏化` 说明。
+
+### 2026-02-16 v1.8-K 页数真实性修复（320 占位治理）
+- 根因定位：`douban_hot_repo` 历史目录数据大量使用 `320` 作为占位页数，录入链路又存在 `320` 默认兜底，导致“真实页数感”被破坏。
+- 录入链路修复（`src/app.mjs`）：
+  - 新增 catalog 页数可信度判断与核验流程：对“页数待核实”的书先做联网核验，再允许录入。
+  - 核验失败时不再落库 320，改为自动切到自编录入并要求用户填写真实页数。
+  - 移除主录入与 Sheet 录入中的 `320` 默认值（含输入框默认值与 payload 默认）。
+  - 新增核验态按钮禁用与反馈文案，避免重复提交。
+- 目录加载修复（`src/lib/catalog-loader.mjs`）：
+  - 将 `douban_hot_repo + 320` 识别为占位值并转换为“待核实”展示，不再当作可信页数。
+  - 将离线 `openlibrary + 320` 也纳入“待核实”范围，避免中位数/占位值混入真实录入链路。
+- 数据构建脚本防回归（`scripts/fetch-catalog.mjs` / `scripts/fetch-openlibrary-catalog.mjs`）：
+  - 生成阶段不再默认填充 320；改为 `pages=0` + `pages_estimated=true`。
+- 稳定性修复（`scripts/e2e-exhaustive.mjs`）：
+  - 修复 shelf 流程中反射保存按钮偶发 detached 导致的超时，统一改为重试点击。
+- 实测结论：
+  - 搜索结果中占位书显示“页数待核实”，不再展示 320 误导值。
+  - 录入“页数待核实”书籍时，可核验成功并写入非 320 页数（示例：`广告学教程 -> 261 页`）。
+  - 自编录入必须显式填写页数，写入值与输入一致（示例：`186 页`）。
+  - 离线目录统计口径：`50400` 本中原始 `320` 页 `37084` 本，现已在加载阶段全部标注为待核实（不再直接信任）。
+- 验证：
+  - `npm ci` ✅
+  - `npm run lint` ✅
+  - `npm test` ✅
+  - `npm run build` ✅
+  - `npm run test:e2e` ✅（修复后重跑）
+  - `npm run test:e2e:headed` ✅
+  - `npm run visual:check` ✅
+
+### 2026-02-16 v1.8-L 星图神殿关闭后世界卡住修复（兜底 + 回归）
+- 根因兜底增强（`src/app.mjs`）：
+  - 在 `syncWorldSceneState()` 增加“状态自愈”逻辑：若 `#sheet-dialog` 已关闭，但 `sheetState` 或 `sheetHistoryStack` 残留，则自动清理并恢复世界交互。
+  - 交互判定改为 `activeTab === "world" && !sheetOpen && sheetState.type === "none"`，避免“状态残留导致误暂停”。
+- 自动化回归增强（`scripts/e2e-exhaustive.mjs`）：
+  - `runPanelFlow()` 新增 `worldRecovered` 断言：打开星图神殿 -> 关闭 -> 地图点击移动，确认玩家坐标发生变化且 `sheet === none`。
+  - 将 `worldRecovered` 纳入场景 pass 条件，防止回归。
+- 验证结果：
+  - `npm ci` ✅
+  - `npm run lint` ✅
+  - `npm test` ✅
+  - `npm run build` ✅
+  - `npm run test:e2e` ✅（3 个视口下 `panelFlow.worldRecovered=true`）
+
+### 2026-02-16 v1.8-M 星图神殿 UI 全面优化（game-art + 2d-games 落地）
+- `src/app.mjs`：重构 `renderWorldPanelSheet()` 为分区结构（档案卡、关键指标、属性谱系、技能星图、进阶路线、成就区），并补充主修路线/最高阶/成就进度等即时信息。
+- `src/app.mjs`：`buildSkillLaneProgressHtml()` 增加路径 class 与 `data-skill-path`，便于路径配色与层级样式。
+- `src/styles.css`：新增神殿专属样式族（`.temple-*`），优化节点尺寸、路径图例、进阶路线卡、竖屏排版和按钮布局，避免文字互相遮挡。
+- 可视核验：检查 `output/playwright/e2e-exhaustive/mobile-390x844-hotspot-panel.png`，星图神殿在竖屏下信息完整可读。
+
+### 2026-02-17 v1.8-N 藏书阁可读性 + 编辑页数（skills: develop-web-game + playwright）
+- `src/app.mjs`：藏书阁书卡从“整卡点击”改为“信息区 + 双按钮（书卷详情/编辑页数）”，并保留 `data-book-uid` 以稳定事件委托。
+- `src/app.mjs`：新增 `openBookPagesEditorSheet()`、`renderBookPagesEditorContent()`、`handleBookTotalPagesSave()`；保存规则固定为 1~4000、保持已读页数优先、自动重算 `progress/progressPages/status`、不触发奖励、`pagesEstimated=false`。
+- `src/app.mjs`：新增 `book-pages-editor` 快照恢复分支，支持多层弹层返回。
+- `src/styles.css`：重做 `.bookshelf-book*` 文本与动作区布局，状态徽章改为流式，标题/作者/进度支持多行可读；新增 `.bookshelf-book-actions`、`.bookshelf-book-open-btn`、`.bookshelf-book-edit-btn`。
+- `scripts/e2e-exhaustive.mjs`：`runShelfFlow()` 增加“编辑页数按钮可见 -> 打开编辑 -> 保存 -> 卡片总页更新 -> 详情共页数一致”断言链，并纳入场景 pass 条件。
+- `README.md`：新增 v1.7.5 说明，补充“编辑页数仅做校正、不发奖励”。
+- 待执行验证链：`npm ci` -> `npm run lint` -> `npm test` -> `npm run build` -> `npm run test:e2e` -> `npm run test:e2e:headed` -> `npm run visual:check`。

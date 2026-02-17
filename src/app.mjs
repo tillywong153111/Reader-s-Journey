@@ -45,9 +45,17 @@ const MAX_ONLINE_RESULTS = 120;
 const ONLINE_OPENLIB_LIMIT = 60;
 const ONLINE_GOOGLE_LIMIT = 40;
 const NETWORK_TIMEOUT_MS = 8000;
+const PAGE_RESOLVE_TIMEOUT_MS = 5200;
+const PAGE_RESOLVE_SCAN_LIMIT = 24;
 const MAX_SHELF_PREVIEW = 6;
 const MAX_REFLECTION_LENGTH = 1000;
 const ENTRY_BOOK_PREVIEW_LIMIT = 3;
+const SHELF_FILTER_OPTIONS = [
+  { key: "all", label: "全部" },
+  { key: "reading", label: "在读" },
+  { key: "planned", label: "待开始" },
+  { key: "finished", label: "已完成" }
+];
 const WORLD_CANVAS_WIDTH = 390;
 const WORLD_CANVAS_HEIGHT = 844;
 const WORLD_MAP_WIDTH = 2496;
@@ -72,6 +80,10 @@ const SKILL_PATH_LABELS = {
   strategy: "战略线",
   general: "通识线"
 };
+const SKILL_MAX_TIER = SKILL_RULES.reduce(
+  (max, rule) => Math.max(max, Math.max(1, Number(rule?.tier) || 1)),
+  1
+);
 const HEADER_LOTTIE_PATH = "./assets/animations/header-sparkle.json";
 const DEFAULT_AUDIO_PROFILE = {
   masterEnabled: true,
@@ -108,12 +120,14 @@ let lastHonorMessage = "每一次翻页，都会点亮你自己的星图。";
 let panelSkillPulseId = "";
 let panelSkillPulseTimer = 0;
 let onlineSearchBusy = false;
+let pageResolveBusy = false;
 let onlineSearchProgressCompleted = 0;
 let onlineSearchRequestId = 0;
 let onlineSearchStatus = "idle";
 let headerLottie = null;
 const lastAttributeSnapshot = new Map();
 const transientCatalogMap = new Map();
+const pageResolutionCache = new Map();
 const worldControlState = {
   left: false,
   right: false,
@@ -163,6 +177,8 @@ const sheetState = {
   searchLoaded: SEARCH_SHEET_PAGE_SIZE,
   query: "",
   searchMode: "offline",
+  shelfFilter: "all",
+  shelfPage: 1,
   bookUid: "",
   editingReflectionId: ""
 };
@@ -324,9 +340,33 @@ function compactLabel(text, max = 11) {
   return `${value.slice(0, max)}…`;
 }
 
+function normalizePositivePages(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.min(4000, Math.round(parsed)));
+}
+
+function isCatalogPagesUntrusted(book) {
+  const pages = normalizePositivePages(book?.pages, 0);
+  const provider = String(book?.source?.provider || "");
+  if (pages <= 0) return true;
+  if (book?.pagesEstimated) return true;
+  if (pages !== 320) return false;
+  return provider === "douban_hot_repo" || provider === "openlibrary";
+}
+
 function formatPagesLabel(pages, pagesEstimated = false) {
-  const safePages = Math.max(1, Number(pages) || 320);
-  return pagesEstimated ? `约${safePages}页` : `${safePages}页`;
+  const safePages = normalizePositivePages(pages, 0);
+  if (safePages <= 0) {
+    return pagesEstimated ? "页数待核实" : "页数未知";
+  }
+  if (!pagesEstimated) {
+    return `${safePages}页`;
+  }
+  if (safePages === 320) {
+    return "页数待核实";
+  }
+  return `约${safePages}页`;
 }
 
 function getAttributeTier(value) {
@@ -370,7 +410,11 @@ function getSkillNodePosition(index, total, rule = null) {
   if (laneIndex >= 0) {
     const laneCount = SKILL_PATH_ORDER.length;
     const x = laneCount <= 1 ? 50 : 12 + (laneIndex * 76) / (laneCount - 1);
-    const y = 86 - (Math.min(4, tier) - 1) * 24;
+    const minY = 16;
+    const maxY = 86;
+    const tierSpan = Math.max(1, SKILL_MAX_TIER - 1);
+    const tierStep = (maxY - minY) / tierSpan;
+    const y = maxY - (Math.min(SKILL_MAX_TIER, tier) - 1) * tierStep;
     return {
       x: Number(x.toFixed(2)),
       y: Number(y.toFixed(2))
@@ -453,6 +497,43 @@ function buildSkillDetailHtml(rule, unlocked) {
     <p class="tip">${escapeHtml(getSkillPrerequisiteText(rule))}</p>
     <p class="tip">${escapeHtml(statusText)}</p>
   `;
+}
+
+function getSkillRulesByPath(path) {
+  return SKILL_RULES
+    .filter((rule) => String(rule.path || "general") === path)
+    .sort((a, b) => {
+      const tierGap = (Number(a.tier) || 1) - (Number(b.tier) || 1);
+      if (tierGap !== 0) return tierGap;
+      return String(a.name || "").localeCompare(String(b.name || ""), "zh-CN");
+    });
+}
+
+function buildSkillLaneProgressHtml(unlockedSet) {
+  return SKILL_PATH_ORDER.map((path) => {
+    const rules = getSkillRulesByPath(path);
+    const unlockedCount = rules.filter((rule) => unlockedSet.has(rule.id)).length;
+    const total = rules.length;
+    const nextRule = rules.find((rule) => !unlockedSet.has(rule.id)) || null;
+    const ratio = total > 0 ? Math.round((unlockedCount / total) * 100) : 0;
+    const nextLine = nextRule
+      ? `下一阶：${nextRule.name}（T${Math.max(1, Number(nextRule.tier) || 1)}）`
+      : "已满阶：当前路径全部点亮";
+    const progressLine = nextRule
+      ? getSkillConditionProgressText(nextRule)
+      : "可持续通过阅读维持该路径优势。";
+    return `
+      <article class="skill-lane-card path-${escapeHtml(path)}" data-skill-path="${escapeHtml(path)}">
+        <div class="skill-lane-head">
+          <strong>${escapeHtml(SKILL_PATH_LABELS[path] || SKILL_PATH_LABELS.general)}</strong>
+          <span>${unlockedCount}/${total}</span>
+        </div>
+        <div class="skill-lane-track"><span class="skill-lane-fill" style="width:${ratio}%"></span></div>
+        <p class="tip">${escapeHtml(nextLine)}</p>
+        <p class="tip">${escapeHtml(progressLine)}</p>
+      </article>
+    `;
+  }).join("");
 }
 
 function normalizeIsbn13(value) {
@@ -550,7 +631,7 @@ function createBook({
     title: title.trim(),
     author: author.trim() || "未知作者",
     isbn: isbn.trim(),
-    pages: Math.max(1, Number(pages) || 320),
+    pages: normalizePositivePages(pages, 1),
     category,
     sourceType,
     status: "planned",
@@ -587,9 +668,11 @@ function replaceState(nextState) {
   shelfPulseUid = "";
   entryMode = "catalog";
   onlineSearchBusy = false;
+  pageResolveBusy = false;
   onlineSearchProgressCompleted = 0;
   onlineSearchStatus = "idle";
   transientCatalogMap.clear();
+  pageResolutionCache.clear();
   invalidateCatalogMerge();
 }
 
@@ -763,7 +846,7 @@ function buildCatalogItemFromStateBook(book) {
     title: book.title,
     author: book.author || "未知作者",
     isbn: book.isbn || "",
-    pages: Math.max(1, Number(book.pages) || 320),
+    pages: normalizePositivePages(book.pages, 1),
     category: book.category || "general",
     source: null
   };
@@ -868,7 +951,7 @@ function toOnlineCatalogItemFromOpenLibrary(rawDoc, query) {
   const workKey = String(rawDoc?.key || "");
   const pageRaw = Number(rawDoc?.number_of_pages_median);
   const hasPageCount = Number.isFinite(pageRaw) && pageRaw > 0;
-  const pageCount = Math.max(40, Math.min(2000, hasPageCount ? pageRaw : 320));
+  const pageCount = hasPageCount ? normalizePositivePages(pageRaw, 0) : 0;
   const category = inferCategoryFromText(`${title} ${author} ${query}`);
   return {
     key: buildCatalogKey(title, author),
@@ -904,7 +987,7 @@ function toOnlineCatalogItemFromGoogle(rawDoc, query) {
   }
   const pageRaw = Number(volume.pageCount);
   const hasPageCount = Number.isFinite(pageRaw) && pageRaw > 0;
-  const pageCount = Math.max(40, Math.min(2000, hasPageCount ? pageRaw : 320));
+  const pageCount = hasPageCount ? normalizePositivePages(pageRaw, 0) : 0;
   const categories = Array.isArray(volume.categories) ? volume.categories.join(" ") : "";
   const category = inferCategoryFromText(`${title} ${author} ${categories} ${query}`);
   return {
@@ -1055,6 +1138,138 @@ function dedupeAndRankOnlineResults(items, query) {
     .map(({ _score, ...book }) => book);
 }
 
+function buildPageResolutionCacheKey(book) {
+  const isbn = normalizeIsbn13(book?.isbn || "");
+  if (isbn) return `isbn:${isbn}`;
+  return `${normalizeText(book?.title || "")}::${normalizeText(book?.author || "")}`;
+}
+
+function scorePageCandidate(target, candidate) {
+  const compareQuery = `${target.title || ""} ${target.author || ""}`.trim();
+  const targetIsbn = normalizeIsbn13(target.isbn || "");
+  const candidateIsbn = normalizeIsbn13(candidate.isbn || "");
+  let score = rankMatch(
+    {
+      title: candidate.title || "",
+      author: candidate.author || "",
+      isbn: candidateIsbn
+    },
+    compareQuery
+  );
+  if (targetIsbn && candidateIsbn && targetIsbn === candidateIsbn) {
+    score += 600;
+  }
+  if (candidate.source?.provider === "googlebooks-live") {
+    score += 24;
+  } else if (candidate.source?.provider === "openlibrary-live") {
+    score += 12;
+  }
+  if (candidate.pages !== 320) {
+    score += 6;
+  }
+  return score;
+}
+
+function applyResolvedPagesToCatalogBook(book, pages) {
+  const safePages = normalizePositivePages(pages, 0);
+  if (safePages <= 0) return;
+  book.pages = safePages;
+  book.pagesEstimated = false;
+  if (book.key && transientCatalogMap.has(book.key)) {
+    const transient = transientCatalogMap.get(book.key);
+    if (transient) {
+      transient.pages = safePages;
+      transient.pagesEstimated = false;
+    }
+  }
+  if (book.key) {
+    ensureMergedCatalog();
+    const merged = catalogStore.mergedMap.get(book.key);
+    if (merged) {
+      merged.pages = safePages;
+      merged.pagesEstimated = false;
+    }
+  }
+  fillEntryFormFromCatalog(book);
+}
+
+async function resolveReliablePagesForCatalogBook(book) {
+  if (!book) return null;
+  const cacheKey = buildPageResolutionCacheKey(book);
+  if (pageResolutionCache.has(cacheKey)) {
+    return pageResolutionCache.get(cacheKey);
+  }
+
+  const queryParts = [String(book.title || "").trim(), String(book.author || "").trim()].filter(Boolean);
+  const query = queryParts.join(" ");
+  const isbn = normalizeIsbn13(book.isbn || "");
+  if (!query && !isbn) {
+    pageResolutionCache.set(cacheKey, null);
+    return null;
+  }
+
+  const queryQueue = [];
+  if (isbn) {
+    queryQueue.push(`isbn:${isbn}`);
+  }
+  if (query) {
+    queryQueue.push(query);
+    if (hasCjk(query)) {
+      queryQueue.push(`${query} language:chi`);
+    }
+  }
+
+  const seenKeys = new Set();
+  const candidates = [];
+  for (const term of queryQueue) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), PAGE_RESOLVE_TIMEOUT_MS);
+    try {
+      const settled = await Promise.allSettled([
+        searchOnlineOpenLibrary(term, controller.signal),
+        searchOnlineGoogleBooks(term, controller.signal)
+      ]);
+      for (const item of settled) {
+        if (item.status !== "fulfilled") continue;
+        const rows = Array.isArray(item.value) ? item.value : [];
+        for (const row of rows.slice(0, PAGE_RESOLVE_SCAN_LIMIT)) {
+          const safePages = normalizePositivePages(row.pages, 0);
+          if (safePages <= 0 || row.pagesEstimated) continue;
+          const rowKey = `${normalizeText(row.title)}::${normalizeText(row.author)}::${normalizeIsbn13(row.isbn || "")}::${safePages}`;
+          if (seenKeys.has(rowKey)) continue;
+          seenKeys.add(rowKey);
+          candidates.push({
+            ...row,
+            pages: safePages,
+            _score: scorePageCandidate(book, row)
+          });
+        }
+      }
+      if (candidates.length > 0) {
+        break;
+      }
+    } catch {
+      // ignore and continue fallback terms
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  if (candidates.length === 0) {
+    pageResolutionCache.set(cacheKey, null);
+    return null;
+  }
+
+  candidates.sort((a, b) => b._score - a._score);
+  const best = candidates[0];
+  const resolved = {
+    pages: best.pages,
+    provider: String(best.source?.provider || "online")
+  };
+  pageResolutionCache.set(cacheKey, resolved);
+  return resolved;
+}
+
 function searchCatalogBooks() {
   if (catalogStore.status === "loading") {
     return {
@@ -1125,14 +1340,17 @@ function fillEntryFormFromCatalog(book) {
   if (elements.entryTitleInput) elements.entryTitleInput.value = book.title || "";
   if (elements.entryAuthorInput) elements.entryAuthorInput.value = book.author || "";
   if (elements.entryIsbnInput) elements.entryIsbnInput.value = book.isbn || "";
-  if (elements.entryPagesInput) elements.entryPagesInput.value = String(book.pages || 320);
+  if (elements.entryPagesInput) {
+    const safePages = normalizePositivePages(book.pages, 0);
+    elements.entryPagesInput.value = safePages > 0 ? String(safePages) : "";
+  }
 }
 
 function clearEntryCustomFields() {
   if (elements.entryTitleInput) elements.entryTitleInput.value = "";
   if (elements.entryAuthorInput) elements.entryAuthorInput.value = "";
   if (elements.entryIsbnInput) elements.entryIsbnInput.value = "";
-  if (elements.entryPagesInput) elements.entryPagesInput.value = "320";
+  if (elements.entryPagesInput) elements.entryPagesInput.value = "";
 }
 
 function setEntryMode(mode) {
@@ -1325,6 +1543,12 @@ function renderEntry() {
   renderEntrySearchResults();
   renderSelectedBookCard();
   renderEntryBookPreview();
+  if (elements.entryAddBtn) {
+    elements.entryAddBtn.disabled = pageResolveBusy;
+    if (pageResolveBusy) {
+      elements.entryAddBtn.textContent = "核验页数中...";
+    }
+  }
 }
 
 function hasDuplicateBook(title, author) {
@@ -1332,12 +1556,65 @@ function hasDuplicateBook(title, author) {
   return state.books.some((book) => bookKey(book) === key);
 }
 
-function addEntryBook() {
-  if (!elements.entryCategorySelect) return;
+function primeCustomEntryFieldsFromCatalog(book) {
+  if (!book) return;
+  if (elements.entryTitleInput) elements.entryTitleInput.value = book.title || "";
+  if (elements.entryAuthorInput) elements.entryAuthorInput.value = book.author || "";
+  if (elements.entryIsbnInput) elements.entryIsbnInput.value = book.isbn || "";
+  if (elements.entryPagesInput) elements.entryPagesInput.value = "";
+  if (elements.entryCategorySelect && !elements.entryCategorySelect.value) {
+    elements.entryCategorySelect.value = book.category || "";
+  }
+}
+
+function formatPagesResolveSource(provider) {
+  if (provider === "googlebooks-live") return "Google Books";
+  if (provider === "openlibrary-live") return "Open Library";
+  return "联网书源";
+}
+
+async function ensureCatalogBookHasReliablePages(selected) {
+  if (!selected) return false;
+  const safePages = normalizePositivePages(selected.pages, 0);
+  if (!isCatalogPagesUntrusted(selected) && safePages > 0) {
+    return true;
+  }
+  if (pageResolveBusy) {
+    setEntryFeedback("正在核验页数，请稍候...");
+    return false;
+  }
+  pageResolveBusy = true;
+  setEntryFeedback(`正在核验《${selected.title}》的真实页数...`);
+  renderEntry();
+  if (sheetState.type === "world-entry") {
+    renderWorldEntrySheet(elements.entryFeedback?.textContent || "正在核验页数...");
+  }
+  try {
+    const resolved = await resolveReliablePagesForCatalogBook(selected);
+    if (!resolved || normalizePositivePages(resolved.pages, 0) <= 0) {
+      primeCustomEntryFieldsFromCatalog(selected);
+      setEntryMode("custom");
+      setEntryFeedback("该书页数未能自动核验。请切换自编录入并填写真实页数后再录入。");
+      renderEntry();
+      if (sheetState.type === "world-entry") {
+        renderWorldEntrySheet(elements.entryFeedback?.textContent || "");
+      }
+      return false;
+    }
+    applyResolvedPagesToCatalogBook(selected, resolved.pages);
+    setEntryFeedback(`已核验页数：${resolved.pages}页（${formatPagesResolveSource(resolved.provider)}）。`);
+    return true;
+  } finally {
+    pageResolveBusy = false;
+  }
+}
+
+async function addEntryBook() {
+  if (!elements.entryCategorySelect) return false;
   const category = elements.entryCategorySelect.value;
   if (!category) {
     setEntryFeedback("请先选择分类，再将这次阅读写入旅程。");
-    return;
+    return false;
   }
 
   let payload;
@@ -1348,13 +1625,24 @@ function addEntryBook() {
     const selected = getSelectedCatalogBook();
     if (!selected) {
       setEntryFeedback("先从搜索结果里选择一本书，再继续录入。");
-      return;
+      return false;
+    }
+    const resolved = await ensureCatalogBookHasReliablePages(selected);
+    if (!resolved) {
+      renderEntry();
+      return false;
+    }
+    const catalogPages = normalizePositivePages(selected.pages, 0);
+    if (catalogPages <= 0) {
+      setEntryFeedback("页数核验失败，请改用自编录入并填写真实页数。");
+      renderEntry();
+      return false;
     }
     payload = {
       title: selected.title,
       author: selected.author,
       isbn: selected.isbn,
-      pages: selected.pages,
+      pages: catalogPages,
       category
     };
     sourceType = selected.source?.manual_online ? "online" : "catalog";
@@ -1363,13 +1651,18 @@ function addEntryBook() {
     const author = elements.entryAuthorInput?.value.trim() || "未知作者";
     if (!title) {
       setEntryFeedback("自编录入需要先填写书名。");
-      return;
+      return false;
+    }
+    const customPages = normalizePositivePages(elements.entryPagesInput?.value, 0);
+    if (customPages <= 0) {
+      setEntryFeedback("请填写真实页数（1-4000）后再录入。");
+      return false;
     }
     payload = {
       title,
       author,
       isbn: elements.entryIsbnInput?.value.trim() || "",
-      pages: Number(elements.entryPagesInput?.value || 320),
+      pages: customPages,
       category
     };
     sourceType = "custom";
@@ -1378,7 +1671,7 @@ function addEntryBook() {
 
   if (hasDuplicateBook(payload.title, payload.author)) {
     setEntryFeedback("这本书已经在你的书单里了，不必重复录入。");
-    return;
+    return false;
   }
 
   const reward = calculateEntryReward({
@@ -1413,6 +1706,7 @@ function addEntryBook() {
   triggerShellBurst("entry");
   audioEngine.playSfx("entry");
   spawnGameToast(`录入成功 +${points}经验`, "gain", elements.entryAddBtn);
+  return true;
 }
 
 function getShelfBooks() {
@@ -1447,6 +1741,40 @@ function formatBookStatus(book) {
   return "待开始";
 }
 
+function normalizeShelfFilter(filter) {
+  return SHELF_FILTER_OPTIONS.some((item) => item.key === filter) ? filter : "all";
+}
+
+function getShelfLayoutConfig() {
+  const widthHint =
+    Number(elements.sheetContent?.clientWidth) ||
+    Number(elements.shell?.clientWidth) ||
+    Number(window.innerWidth) ||
+    WORLD_CANVAS_WIDTH;
+
+  let rowSize = 3;
+  if (widthHint < 480) {
+    rowSize = 2;
+  } else if (widthHint >= 1180) {
+    rowSize = 6;
+  } else if (widthHint >= 920) {
+    rowSize = 5;
+  } else if (widthHint >= 680) {
+    rowSize = 4;
+  }
+  const rowsPerPage = widthHint >= 920 ? 4 : 5;
+  const pageSize = Math.max(1, rowSize * rowsPerPage);
+  return { rowSize, rowsPerPage, pageSize };
+}
+
+function chunkBooksByRow(items, rowSize) {
+  const rows = [];
+  for (let index = 0; index < items.length; index += rowSize) {
+    rows.push(items.slice(index, index + rowSize));
+  }
+  return rows;
+}
+
 function buildAttributeRowsHtml(keys = ATTRIBUTE_KEYS) {
   return keys.map((key) => {
     const value = state.stats.attributes[key] || 0;
@@ -1465,6 +1793,13 @@ function buildAttributeRowsHtml(keys = ATTRIBUTE_KEYS) {
 function applyBookProgressUpdate(book, nextProgressValue, { allowDecrease = false } = {}) {
   const previousProgress = Math.max(0, Math.min(100, Number(book.progress) || 0));
   const nextProgress = Math.max(0, Math.min(100, Number(nextProgressValue) || 0));
+  const totalPages = Math.max(1, Number(book.pages) || 1);
+  const previousReadPages = Math.max(
+    0,
+    Math.min(totalPages, Number(book.progressPages) || Math.round((totalPages * previousProgress) / 100))
+  );
+  const nextReadPages = Math.max(0, Math.min(totalPages, Math.round((totalPages * nextProgress) / 100)));
+  const deltaReadPages = nextReadPages - previousReadPages;
   if (nextProgress === previousProgress) {
     return {
       ok: false,
@@ -1483,7 +1818,7 @@ function applyBookProgressUpdate(book, nextProgressValue, { allowDecrease = fals
 
   if (nextProgress < previousProgress) {
     book.progress = nextProgress;
-    book.progressPages = Math.round((book.pages * nextProgress) / 100);
+    book.progressPages = nextReadPages;
     book.status = nextProgress >= 100 ? "finished" : nextProgress > 0 ? "reading" : "planned";
     book.updatedAt = Date.now();
     persist();
@@ -1507,8 +1842,11 @@ function applyBookProgressUpdate(book, nextProgressValue, { allowDecrease = fals
 
   state.stats = result.updatedStats;
   book.progress = nextProgress;
-  book.progressPages = Math.round((book.pages * nextProgress) / 100);
+  book.progressPages = nextReadPages;
   book.status = nextProgress >= 100 ? "finished" : "reading";
+  if (deltaReadPages > 0) {
+    state.todayReadPages = Math.max(0, Number(state.todayReadPages) || 0) + deltaReadPages;
+  }
   book.updatedAt = Date.now();
   persist();
   return {
@@ -1588,7 +1926,7 @@ function renderPanel() {
   });
 
   const unlockedSkills = state.stats.skills || [];
-  const unlockedById = new Map(unlockedSkills.map((skill) => [skill.id, skill]));
+  const unlockedSet = new Set(unlockedSkills.map((skill) => skill.id));
   const autoSkills = [...unlockedSkills].slice(-3).reverse();
   const autoIds = new Set(autoSkills.map((skill) => skill.id));
   elements.panelSkillList.innerHTML = `
@@ -1596,13 +1934,16 @@ function renderPanel() {
       <p class="skill-crest-title">${unlockedSkills.length > 0 ? `阶梯共鸣 ${unlockedSkills.length}/${SKILL_RULES.length}` : "尚未点亮技能星"} </p>
       <p class="skill-crest-sub">${unlockedSkills.length > 0 ? "技能沿阶梯逐层解锁，自动装备最近解锁的 3 星。" : "继续推进阅读进度，即可点亮第一阶技能。"}</p>
     </article>
+    <div class="skill-lane-progress">${buildSkillLaneProgressHtml(unlockedSet)}</div>
   `;
 
   if (elements.panelSkillStarMap) {
+    elements.panelSkillStarMap.style.setProperty("--skill-tier-count", String(SKILL_MAX_TIER));
+    elements.panelSkillStarMap.style.setProperty("--skill-path-count", String(SKILL_PATH_ORDER.length));
     elements.panelSkillStarMap.innerHTML = SKILL_RULES
       .map((rule, index) => {
         const position = getSkillNodePosition(index, SKILL_RULES.length, rule);
-        const unlocked = unlockedById.has(rule.id);
+        const unlocked = unlockedSet.has(rule.id);
         const equipped = autoIds.has(rule.id);
         const classes = [
           "skill-star-node",
@@ -1861,6 +2202,13 @@ function snapshotCurrentSheet() {
       feedbackText: getSheetFeedbackText()
     };
   }
+  if (sheetState.type === "book-pages-editor") {
+    return {
+      type: "book-pages-editor",
+      bookUid: sheetState.bookUid,
+      feedbackText: getSheetFeedbackText()
+    };
+  }
   if (sheetState.type === "share") {
     return {
       type: "share",
@@ -1880,6 +2228,9 @@ function getSheetSnapshotKey(snapshot) {
   }
   if (snapshot.type === "book-detail") {
     return `book-detail:${snapshot.bookUid || ""}`;
+  }
+  if (snapshot.type === "book-pages-editor") {
+    return `book-pages-editor:${snapshot.bookUid || ""}`;
   }
   return snapshot.type;
 }
@@ -1967,6 +2318,13 @@ function restoreSheetFromSnapshot(snapshot) {
     });
     return;
   }
+  if (snapshot.type === "book-pages-editor") {
+    openBookPagesEditorSheet(snapshot.bookUid, {
+      skipHistory: true,
+      feedbackText: snapshot.feedbackText || ""
+    });
+    return;
+  }
   if (snapshot.type === "generic") {
     openSheet(snapshot.title || "详情", snapshot.html || "", { skipHistory: true });
   }
@@ -2046,7 +2404,7 @@ function renderWorldEntrySheet(feedbackText = "") {
     title: elements.entryTitleInput?.value || "",
     author: elements.entryAuthorInput?.value || "",
     isbn: elements.entryIsbnInput?.value || "",
-    pages: elements.entryPagesInput?.value || "320"
+    pages: elements.entryPagesInput?.value || ""
   };
 
   const customFieldsHtml =
@@ -2067,7 +2425,7 @@ function renderWorldEntrySheet(feedbackText = "") {
           </label>
           <label>
             页数
-            <input id="sheet-world-entry-pages" type="number" min="1" max="4000" value="${escapeHtml(customValues.pages)}" />
+            <input id="sheet-world-entry-pages" type="number" min="1" max="4000" value="${escapeHtml(customValues.pages)}" placeholder="例如：368" />
           </label>
         </div>
       `
@@ -2127,8 +2485,8 @@ function renderWorldEntrySheet(feedbackText = "") {
         分类（必选）
         <select id="sheet-world-entry-category">${buildCategoryOptionsHtml(currentCategory)}</select>
       </label>
-      <button id="sheet-world-entry-add-btn" class="btn-primary" type="button">
-        ${entryMode === "catalog" && selected ? `录入《${escapeHtml(compactLabel(selected.title))}》并结算` : "录入并结算"}
+      <button id="sheet-world-entry-add-btn" class="btn-primary" type="button"${pageResolveBusy ? " disabled" : ""}>
+        ${pageResolveBusy ? "核验页数中..." : entryMode === "catalog" && selected ? `录入《${escapeHtml(compactLabel(selected.title))}》并结算` : "录入并结算"}
       </button>
       <p class="tip">${escapeHtml(modeHint)}</p>
       ${feedback ? `<p class="feedback">${escapeHtml(feedback)}</p>` : ""}
@@ -2251,7 +2609,65 @@ function renderWorldPanelSheet() {
   const unlocked = state.stats.skills || [];
   const unlockedMap = new Set(unlocked.map((item) => item.id));
   const unlockedAchievementNames = new Set((state.stats.achievements || []).map((item) => item.name));
-  const topSkills = unlocked.slice(-3).reverse();
+  const unlockedAchievementCount = unlockedAchievementNames.size;
+  const highestTierUnlocked = unlocked.reduce((maxTier, item) => {
+    const rule = getSkillRuleById(item.id);
+    return Math.max(maxTier, Math.max(1, Number(rule?.tier) || 1));
+  }, 0);
+  const pathProgress = SKILL_PATH_ORDER.map((path) => {
+    const rules = getSkillRulesByPath(path);
+    const unlockedCount = rules.filter((rule) => unlockedMap.has(rule.id)).length;
+    const total = Math.max(1, rules.length);
+    const ratio = Math.round((unlockedCount / total) * 100);
+    const nextRule = rules.find((rule) => !unlockedMap.has(rule.id)) || null;
+    return {
+      path,
+      unlockedCount,
+      total: rules.length,
+      ratio,
+      nextRule
+    };
+  });
+  const primaryPath = [...pathProgress].sort((a, b) => {
+    if (b.unlockedCount !== a.unlockedCount) return b.unlockedCount - a.unlockedCount;
+    return b.ratio - a.ratio;
+  })[0] || null;
+  const primaryPathText =
+    primaryPath && primaryPath.unlockedCount > 0
+      ? `${SKILL_PATH_LABELS[primaryPath.path] || SKILL_PATH_LABELS.general} ${primaryPath.unlockedCount}/${Math.max(
+          1,
+          primaryPath.total
+        )}`
+      : "尚未形成主修路径";
+  const pathOverviewHtml = pathProgress
+    .map((item) => {
+      const nextText = item.nextRule
+        ? `下一阶：${item.nextRule.name}（T${Math.max(1, Number(item.nextRule.tier) || 1)}）`
+        : "已满阶：当前路线全部点亮";
+      return `
+        <article class="temple-path-card path-${escapeHtml(item.path)}">
+          <div class="temple-path-head">
+            <strong>${escapeHtml(SKILL_PATH_LABELS[item.path] || SKILL_PATH_LABELS.general)}</strong>
+            <span>${item.unlockedCount}/${item.total}</span>
+          </div>
+          <div class="temple-path-track"><span class="temple-path-fill" style="width:${item.ratio}%"></span></div>
+          <p class="tip">${escapeHtml(nextText)}</p>
+        </article>
+      `;
+    })
+    .join("");
+  const skillPathLegendHtml = SKILL_PATH_ORDER.map((path) => {
+    const label = SKILL_PATH_LABELS[path] || SKILL_PATH_LABELS.general;
+    return `<span class="skill-path-legend path-${escapeHtml(path)}"><span class="skill-path-dot" aria-hidden="true"></span>${escapeHtml(label)}</span>`;
+  }).join("");
+  const activeSkillsHtml =
+    unlocked.length > 0
+      ? unlocked
+          .slice(-4)
+          .reverse()
+          .map((skill) => `<span class="chip active">${escapeHtml(skill.name)}</span>`)
+          .join("")
+      : '<span class="chip">尚未点亮技能</span>';
 
   const skillStarHtml = SKILL_RULES.map((rule, index) => {
     const pos = getSkillNodePosition(index, SKILL_RULES.length, rule);
@@ -2277,23 +2693,63 @@ function renderWorldPanelSheet() {
 
   elements.sheetTitle.textContent = "星图神殿";
   elements.sheetContent.innerHTML = `
-    <section class="sheet-world-panel">
-      <article class="panel-core">
+    <section class="sheet-world-panel temple-world-panel">
+      <article class="panel-core temple-profile-card">
         <p class="panel-kicker">旅者档案</p>
         <p>Lv.${state.stats.level} · 经验 ${state.stats.exp}/${required} · 已完成 ${done} 本</p>
         <div class="xp-track"><div class="xp-fill" style="width:${Math.max(0, Math.min(100, Math.round((state.stats.exp / Math.max(1, required)) * 100)))}%"></div></div>
       </article>
-      <div class="attribute-list">${buildAttributeRowsHtml()}</div>
-      <div class="card-head"><h3>技能星图</h3></div>
-      <div class="skill-star-map">${skillStarHtml}</div>
-      <div class="chip-list">
-        ${topSkills.length > 0 ? topSkills.map((skill) => `<span class="chip active">${escapeHtml(skill.name)}</span>`).join("") : '<span class="chip">尚未点亮技能</span>'}
+      <div class="temple-quick-stats">
+        <article class="temple-stat-chip">
+          <span class="temple-stat-label">技能解锁</span>
+          <strong>${unlocked.length}/${SKILL_RULES.length}</strong>
+        </article>
+        <article class="temple-stat-chip">
+          <span class="temple-stat-label">最高阶</span>
+          <strong>${highestTierUnlocked > 0 ? `T${highestTierUnlocked}` : "T0"}</strong>
+        </article>
+        <article class="temple-stat-chip">
+          <span class="temple-stat-label">主修路线</span>
+          <strong>${escapeHtml(primaryPathText)}</strong>
+        </article>
+        <article class="temple-stat-chip">
+          <span class="temple-stat-label">成就进度</span>
+          <strong>${unlockedAchievementCount}/${ACHIEVEMENT_RULES.length}</strong>
+        </article>
       </div>
-      <div class="card-head"><h3>成就摘要</h3></div>
-      <div class="chip-list">
-        ${ACHIEVEMENT_RULES.map((item) => `<span class="chip${unlockedAchievementNames.has(item.name) ? " active" : ""}">${item.threshold}本 · ${escapeHtml(item.name)}</span>`).join("")}
-      </div>
-      <div class="inline-actions">
+      <section class="temple-section temple-attrs-section">
+        <div class="card-head">
+          <h3>属性谱系</h3>
+          <span class="badge">动态上限</span>
+        </div>
+        <div class="attribute-list">${buildAttributeRowsHtml()}</div>
+      </section>
+      <section class="temple-section temple-skill-map-section">
+        <div class="card-head">
+          <h3>技能星图</h3>
+          <span class="tip">点击节点可查看解锁条件</span>
+        </div>
+        <div class="skill-path-legend-list">${skillPathLegendHtml}</div>
+        <div class="skill-star-map" style="--skill-tier-count:${SKILL_MAX_TIER}; --skill-path-count:${SKILL_PATH_ORDER.length};">${skillStarHtml}</div>
+      </section>
+      <section class="temple-section temple-path-section">
+        <div class="card-head">
+          <h3>进阶路线</h3>
+          <span class="badge">4 条</span>
+        </div>
+        <div class="temple-path-grid">${pathOverviewHtml}</div>
+        <div class="skill-lane-progress">${buildSkillLaneProgressHtml(unlockedMap)}</div>
+      </section>
+      <section class="temple-section temple-achievement-section">
+        <div class="card-head"><h3>当前共鸣与成就</h3></div>
+        <div class="chip-list">
+          ${activeSkillsHtml}
+        </div>
+        <div class="chip-list">
+          ${ACHIEVEMENT_RULES.map((item) => `<span class="chip${unlockedAchievementNames.has(item.name) ? " active" : ""}">${item.threshold}本 · ${escapeHtml(item.name)}</span>`).join("")}
+        </div>
+      </section>
+      <div class="inline-actions temple-actions">
         <button id="sheet-world-panel-attrs-btn" class="btn-secondary" type="button">属性全览</button>
         <button id="sheet-world-panel-skills-btn" class="btn-secondary" type="button">技能明细</button>
         <button id="sheet-world-panel-achievements-btn" class="btn-secondary" type="button">成就明细</button>
@@ -2460,11 +2916,9 @@ function renderWorld() {
 
 function updateWorldOverviewHud() {
   if (elements.worldDailyChip) {
-    const todayDone = Math.min(3, Math.max(0, Number(state.todayEntries) || 0));
-    const remaining = Math.max(0, 3 - todayDone);
-    elements.worldDailyChip.textContent =
-      remaining > 0 ? `今日录入 ${todayDone}/3` : "今日录入 3/3 · 已达标";
-    elements.worldDailyChip.classList.toggle("ready", remaining === 0);
+    const todayReadPages = Math.max(0, Math.round(Number(state.todayReadPages) || 0));
+    elements.worldDailyChip.textContent = `今日已阅读 ${todayReadPages} 页`;
+    elements.worldDailyChip.classList.remove("ready");
   }
   if (elements.worldFocusChip) {
     const target = getWorldHotspot(worldRuntime.autoTargetZoneId);
@@ -2538,7 +2992,12 @@ function syncWorldSceneState() {
   if (!worldRuntime.scene) return;
   const scene = worldRuntime.scene;
   if (!scene.scene || !scene.physics?.world) return;
-  const isInteractiveWorld = activeTab === "world" && sheetState.type === "none";
+  const sheetOpen = Boolean(elements.sheetDialog?.hasAttribute("open"));
+  if (!sheetOpen && (sheetState.type !== "none" || sheetHistoryStack.length > 0)) {
+    clearSheetHistory();
+    resetSheetDialogState();
+  }
+  const isInteractiveWorld = activeTab === "world" && !sheetOpen && sheetState.type === "none";
   const keyboard = scene.input?.keyboard;
   if (keyboard) {
     keyboard.enabled = isInteractiveWorld;
@@ -4194,6 +4653,51 @@ function advanceWorldTime(ms = 1000 / 60) {
   return true;
 }
 
+function seedShelfBooksForTesting(count = 0) {
+  const target = Math.max(0, Math.min(60, Number(count) || 0));
+  if (target <= 0) return 0;
+  const categories = [...ENTRY_CATEGORY_ORDER];
+  const stamp = Date.now();
+  let added = 0;
+
+  for (let index = 0; index < target; index += 1) {
+    const title = `Exhaustive Seed Book ${stamp}-${index + 1}`;
+    const author = `Shelf Bot ${index % 5}`;
+    if (hasDuplicateBook(title, author)) continue;
+    const pages = 160 + ((index * 37) % 520);
+    const category = categories[index % categories.length] || "general";
+    const created = createBook({
+      title,
+      author,
+      isbn: `RJ-T-${stamp}-${index}`,
+      pages,
+      category,
+      sourceType: "custom"
+    });
+
+    if (index % 6 === 0) {
+      created.progress = 100;
+      created.status = "finished";
+      created.progressPages = created.pages;
+    } else if (index % 2 === 0) {
+      const progress = Math.min(95, 22 + (index % 58));
+      created.progress = progress;
+      created.status = "reading";
+      created.progressPages = Math.round((created.pages * progress) / 100);
+    }
+    created.updatedAt = Date.now() + index;
+    state.books.unshift(created);
+    added += 1;
+  }
+
+  if (added > 0) {
+    invalidateCatalogMerge();
+    persist();
+    renderAll();
+  }
+  return added;
+}
+
 function exposeWorldTestingHooks() {
   if (typeof window === "undefined") return;
   window.render_game_to_text = () => renderGameToTextState();
@@ -4222,6 +4726,57 @@ function exposeWorldTestingHooks() {
     clearWorldInteractCooldown: () => {
       worldRuntime.interactCooldownUntil = 0;
       return true;
+    },
+    seedShelfBooks: (count) => {
+      return seedShelfBooksForTesting(count);
+    },
+    openShelfSheet: () => {
+      onPanelShelfMore({ skipHistory: true });
+      return true;
+    },
+    openBookDetail: (uidValue) => {
+      const book = getBookByUid(uidValue);
+      if (!book) return false;
+      openBookDetailSheet(book.uid, { skipHistory: true });
+      return true;
+    },
+    openBookPagesEditor: (uidValue) => {
+      const book = getBookByUid(uidValue);
+      if (!book) return false;
+      openBookPagesEditorSheet(book.uid, { skipHistory: true });
+      return true;
+    },
+    setBookTotalPages: (uidValue, nextTotalValue) => {
+      const book = getBookByUid(uidValue);
+      const nextTotalPages = Number(nextTotalValue);
+      if (!book || !Number.isInteger(nextTotalPages) || nextTotalPages < 1 || nextTotalPages > 4000) {
+        return false;
+      }
+      const currentTotalPages = Math.max(1, Number(book.pages) || 1);
+      const currentProgress = Math.max(0, Math.min(100, Number(book.progress) || 0));
+      const oldReadPages = Math.max(
+        0,
+        Math.min(currentTotalPages, Number(book.progressPages) || Math.round((currentTotalPages * currentProgress) / 100))
+      );
+      const nextReadPages = Math.min(oldReadPages, nextTotalPages);
+      const nextProgress = Math.max(0, Math.min(100, Math.round((nextReadPages / nextTotalPages) * 100)));
+      book.pages = nextTotalPages;
+      book.progressPages = nextReadPages;
+      book.progress = nextProgress;
+      book.status = nextProgress >= 100 ? "finished" : nextProgress > 0 ? "reading" : "planned";
+      book.pagesEstimated = false;
+      book.updatedAt = Date.now();
+      persist();
+      renderAll();
+      onPanelShelfMore({
+        skipHistory: true,
+        feedbackText: `《${book.title}》总页数已更新为 ${nextTotalPages} 页（已读 ${nextReadPages} 页，不触发奖励）。`
+      });
+      return true;
+    },
+    getFirstShelfBookUid: () => {
+      const firstBook = getShelfBooks()[0];
+      return firstBook?.uid || "";
     }
   };
 }
@@ -4792,16 +5347,7 @@ function closeSheet() {
   if (!elements.sheetDialog) return;
   audioEngine.playSfx("tap");
   clearSheetHistory();
-  sheetState.type = "none";
-  sheetState.html = "";
-  sheetState.searchItems = [];
-  sheetState.searchTotal = 0;
-  sheetState.searchTruncated = false;
-  sheetState.searchLoaded = SEARCH_SHEET_PAGE_SIZE;
-  sheetState.searchMode = "offline";
-  sheetState.bookUid = "";
-  sheetState.editingReflectionId = "";
-  elements.headerShareBtn?.classList.remove("active");
+  resetSheetDialogState();
 
   if (typeof elements.sheetDialog.close === "function") {
     elements.sheetDialog.close();
@@ -4812,6 +5358,39 @@ function closeSheet() {
     switchTab("world", { skipAnimation: true });
     return;
   }
+  syncWorldSceneState();
+  syncSheetBackButtonState();
+}
+
+function resetSheetDialogState() {
+  sheetState.type = "none";
+  sheetState.html = "";
+  sheetState.searchItems = [];
+  sheetState.searchTotal = 0;
+  sheetState.searchTruncated = false;
+  sheetState.searchLoaded = SEARCH_SHEET_PAGE_SIZE;
+  sheetState.searchMode = "offline";
+  sheetState.bookUid = "";
+  sheetState.editingReflectionId = "";
+  elements.headerShareBtn?.classList.remove("active");
+}
+
+function syncAfterNativeSheetClose() {
+  const hasDanglingState = sheetState.type !== "none" || sheetHistoryStack.length > 0;
+  if (!hasDanglingState) {
+    syncWorldSceneState();
+    syncSheetBackButtonState();
+    return;
+  }
+
+  clearSheetHistory();
+  resetSheetDialogState();
+
+  if (activeTab !== "world") {
+    switchTab("world", { skipAnimation: true });
+    return;
+  }
+
   syncWorldSceneState();
   syncSheetBackButtonState();
 }
@@ -5249,6 +5828,114 @@ function handleBookProgressSave() {
   renderBookDetailSheet("进度已保存并完成结算。");
 }
 
+function openBookPagesEditorSheet(uidValue, options = {}) {
+  const { skipHistory = false, feedbackText = "" } = options;
+  const book = getBookByUid(uidValue);
+  if (!book || !elements.sheetDialog || !elements.sheetTitle || !elements.sheetContent) return;
+  rememberSheetForBack(`book-pages-editor:${book.uid}`, skipHistory);
+  audioEngine.playSfx("tap");
+  triggerHaptic("light");
+  sheetState.type = "book-pages-editor";
+  sheetState.bookUid = book.uid;
+  sheetState.editingReflectionId = "";
+  renderBookPagesEditorContent(book, feedbackText);
+  if (elements.sheetDialog.hasAttribute("open")) {
+    syncWorldSceneState();
+    return;
+  }
+  if (typeof elements.sheetDialog.showModal === "function") {
+    elements.sheetDialog.showModal();
+    syncWorldSceneState();
+    return;
+  }
+  elements.sheetDialog.setAttribute("open", "");
+  syncWorldSceneState();
+  syncSheetBackButtonState();
+}
+
+function renderBookPagesEditorContent(book, feedbackText = "") {
+  if (!elements.sheetTitle || !elements.sheetContent) return;
+  const targetBook = book || getBookByUid(sheetState.bookUid);
+  if (!targetBook) {
+    elements.sheetTitle.textContent = "编辑页数";
+    elements.sheetContent.innerHTML = '<p class="tip">该书已不存在。</p>';
+    return;
+  }
+  const totalPages = Math.max(1, Number(targetBook.pages) || 1);
+  const progressValue = Math.max(0, Math.min(100, Number(targetBook.progress) || 0));
+  const readPages = Math.max(
+    0,
+    Math.min(totalPages, Number(targetBook.progressPages) || Math.round((totalPages * progressValue) / 100))
+  );
+  elements.sheetTitle.textContent = "编辑页数";
+  elements.sheetContent.innerHTML = `
+    <section class="sheet-book-pages-editor">
+      <div class="sheet-book-head">
+        <h3>${escapeHtml(targetBook.title)}</h3>
+        <p class="tip">${escapeHtml(targetBook.author)} · ${escapeHtml(CATEGORY_LABELS[targetBook.category] || "通识")}</p>
+      </div>
+      <section class="sheet-progress-editor">
+        <p class="tip">当前总页数：${totalPages} 页</p>
+        <p class="tip">当前已读：${readPages} 页（${progressValue}%）</p>
+        <label>
+          修正总页数（1-4000）
+          <input
+            id="sheet-book-total-pages-input"
+            type="number"
+            min="1"
+            max="4000"
+            step="1"
+            value="${totalPages}"
+            inputmode="numeric"
+            aria-label="书籍总页数"
+          />
+        </label>
+        <p class="tip">保存后会尽量保持已读页数不变（超出会自动截断），并自动换算进度与状态；不发放奖励。</p>
+        <div class="inline-actions">
+          <button type="button" class="btn-primary" id="sheet-book-pages-save-btn" data-book-uid="${escapeHtml(targetBook.uid)}">保存页数</button>
+          <button type="button" class="btn-secondary" id="sheet-book-pages-cancel-btn">返回藏书阁</button>
+        </div>
+      </section>
+      ${feedbackText ? `<p class="feedback">${escapeHtml(feedbackText)}</p>` : ""}
+    </section>
+  `;
+}
+
+function handleBookTotalPagesSave(uidValue = "") {
+  const bookUid = String(uidValue || sheetState.bookUid || "").trim();
+  const book = getBookByUid(bookUid);
+  const pagesInput = elements.sheetContent?.querySelector("#sheet-book-total-pages-input");
+  if (!book || !(pagesInput instanceof HTMLInputElement)) return;
+  const parsedValue = Number(pagesInput.value);
+  if (!Number.isFinite(parsedValue) || !Number.isInteger(parsedValue) || parsedValue < 1 || parsedValue > 4000) {
+    renderBookPagesEditorContent(book, "请输入 1~4000 的整数页数。");
+    return;
+  }
+
+  const currentTotalPages = Math.max(1, Number(book.pages) || 1);
+  const currentProgress = Math.max(0, Math.min(100, Number(book.progress) || 0));
+  const oldReadPages = Math.max(
+    0,
+    Math.min(currentTotalPages, Number(book.progressPages) || Math.round((currentTotalPages * currentProgress) / 100))
+  );
+  const nextTotalPages = parsedValue;
+  const nextReadPages = Math.min(oldReadPages, nextTotalPages);
+  const nextProgress = Math.max(0, Math.min(100, Math.round((nextReadPages / nextTotalPages) * 100)));
+
+  book.pages = nextTotalPages;
+  book.progressPages = nextReadPages;
+  book.progress = nextProgress;
+  book.status = nextProgress >= 100 ? "finished" : nextProgress > 0 ? "reading" : "planned";
+  book.pagesEstimated = false;
+  book.updatedAt = Date.now();
+  persist();
+  renderAll();
+
+  const successText = `《${book.title}》总页数已更新为 ${nextTotalPages} 页（已读 ${nextReadPages} 页，不触发奖励）。`;
+  setEntryFeedback(successText);
+  onPanelShelfMore({ skipHistory: true, feedbackText: successText });
+}
+
 function handleReflectionSave() {
   const book = getBookByUid(sheetState.bookUid);
   const textarea = elements.sheetContent?.querySelector("#sheet-reflection-input");
@@ -5313,58 +6000,139 @@ function onPanelAttributesMore() {
   openSheet("全部属性", html);
 }
 
-function onPanelShelfMore() {
+function onPanelShelfMore(options = {}) {
+  const { skipHistory = false, feedbackText = "" } = options;
   const books = getShelfBooks();
-  if (books.length === 0) {
-    openSheet("卷轴书架", '<div class="scroll-empty">还没有在读或已完成书籍。</div>');
-    return;
-  }
-  const html = `
-    <div class="shelf-scroll-grid">
-      ${books
+  const counts = {
+    all: books.length,
+    reading: books.filter((book) => book.status === "reading").length,
+    planned: books.filter((book) => book.status === "planned").length,
+    finished: books.filter((book) => book.status === "finished").length
+  };
+  const activeFilter = normalizeShelfFilter(sheetState.shelfFilter);
+  const filteredBooks =
+    activeFilter === "all" ? books : books.filter((book) => String(book.status || "") === activeFilter);
+  const { rowSize, pageSize } = getShelfLayoutConfig();
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / pageSize));
+  const currentPage = Math.min(totalPages, Math.max(1, Number(sheetState.shelfPage) || 1));
+  const startIndex = (currentPage - 1) * pageSize;
+  const pageBooks = filteredBooks.slice(startIndex, startIndex + pageSize);
+  const pageRows = chunkBooksByRow(pageBooks, rowSize);
+  const hasBooks = books.length > 0;
+
+  sheetState.shelfFilter = activeFilter;
+  sheetState.shelfPage = currentPage;
+
+  const filterButtons = SHELF_FILTER_OPTIONS.map((item) => {
+    const activeClass = item.key === activeFilter ? " active" : "";
+    const count = counts[item.key] || 0;
+    return `
+      <button type="button" class="bookshelf-filter-btn${activeClass}" data-shelf-filter="${item.key}">
+        ${escapeHtml(item.label)}<span class="bookshelf-filter-count">${count}</span>
+      </button>
+    `;
+  }).join("");
+
+  const rowsHtml = pageRows
+    .map((row) => {
+      const booksHtml = row
         .map((book) => {
           const progress = Math.max(0, Math.min(100, Number(book.progress) || 0));
+          const totalPages = Math.max(1, Number(book.pages) || 1);
+          const readPages = Math.max(
+            0,
+            Math.min(totalPages, Number(book.progressPages) || Math.round((totalPages * progress) / 100))
+          );
           return `
-            <button type="button" class="scroll-card scroll-card-portrait sheet-open-book-detail" data-book-uid="${escapeHtml(book.uid)}">
-              <span class="scroll-card-portrait-roll top" aria-hidden="true"></span>
-              <article class="scroll-card-portrait-paper">
-                <p class="scroll-title scroll-title-portrait">${escapeHtml(book.title)}</p>
-                <p class="scroll-sub scroll-sub-portrait">${escapeHtml(book.author)} · ${escapeHtml(CATEGORY_LABELS[book.category] || "通识")}</p>
-                <div class="scroll-track"><div class="scroll-fill" style="width:${progress}%"></div></div>
-                <p class="scroll-percent scroll-percent-portrait">阅读进度 ${progress}%</p>
-              </article>
-              <span class="scroll-card-portrait-roll bottom" aria-hidden="true"></span>
-              <div class="scroll-book-base" aria-hidden="true">
-                <span class="scroll-book-base-spine"></span>
-                <span class="scroll-book-base-label">书籍</span>
+            <article class="bookshelf-book" data-book-uid="${escapeHtml(book.uid)}">
+              <div class="bookshelf-book-paper">
+                <span class="bookshelf-book-status">${escapeHtml(formatBookStatus(book))}</span>
+                <p class="bookshelf-book-title">${escapeHtml(book.title)}</p>
+                <p class="bookshelf-book-meta">${escapeHtml(book.author)} · ${escapeHtml(CATEGORY_LABELS[book.category] || "通识")}</p>
+                <div class="bookshelf-track"><div class="bookshelf-fill" style="width:${progress}%"></div></div>
+                <p class="bookshelf-book-progress">
+                  <span class="bookshelf-book-progress-percent">阅读进度 ${progress}%</span>
+                  <span class="bookshelf-book-progress-pages">${readPages}/${totalPages} 页</span>
+                </p>
               </div>
-              <span class="badge scroll-badge-portrait">${escapeHtml(formatBookStatus(book))}</span>
-            </button>
+              <div class="bookshelf-book-actions">
+                <button type="button" class="bookshelf-book-open-btn sheet-open-book-detail" data-book-uid="${escapeHtml(book.uid)}">书卷详情</button>
+                <button type="button" class="bookshelf-book-edit-btn sheet-edit-book-pages" data-book-uid="${escapeHtml(book.uid)}">编辑页数</button>
+              </div>
+            </article>
           `;
         })
-        .join("")}
-    </div>
+        .join("");
+      return `<div class="bookshelf-row">${booksHtml}</div>`;
+    })
+    .join("");
+
+  const emptyHtml = hasBooks
+    ? '<div class="bookshelf-empty">当前筛选下暂无书卷，试试切换筛选条件。</div>'
+    : '<div class="bookshelf-empty">书架还是空的，先去录入台登记第一本书吧。</div>';
+
+  const paginationHtml =
+    filteredBooks.length > pageSize
+      ? `
+        <div class="bookshelf-pagination">
+          <button type="button" class="bookshelf-page-btn btn-secondary" data-shelf-page-action="prev" ${currentPage <= 1 ? "disabled" : ""}>上一页</button>
+          <p class="bookshelf-page-label">第 ${currentPage} / ${totalPages} 页</p>
+          <button type="button" class="bookshelf-page-btn btn-secondary" data-shelf-page-action="next" ${currentPage >= totalPages ? "disabled" : ""}>下一页</button>
+        </div>
+      `
+      : "";
+
+  const html = `
+    <section class="bookshelf-sheet">
+      <header class="bookshelf-head">
+        <div class="bookshelf-head-main">
+          <p class="bookshelf-head-title">藏书阁</p>
+          <p class="bookshelf-head-sub">共 ${books.length} 本 · 当前展示 ${filteredBooks.length} 本</p>
+        </div>
+        <p class="bookshelf-head-meta">${rowSize} 本/层 · ${filteredBooks.length > 0 ? Math.ceil(filteredBooks.length / rowSize) : 0} 层</p>
+      </header>
+      <div class="bookshelf-filter" role="tablist" aria-label="书架筛选">
+        ${filterButtons}
+      </div>
+      <div class="bookshelf-rack" style="--bookshelf-row-size:${rowSize};">
+        ${pageRows.length > 0 ? rowsHtml : emptyHtml}
+      </div>
+      ${paginationHtml}
+      ${feedbackText ? `<p class="feedback">${escapeHtml(feedbackText)}</p>` : ""}
+    </section>
   `;
-  openSheet("藏书阁", html);
+  openSheet("藏书阁", html, { skipHistory });
 }
 
 function onPanelSkillsMore() {
   const unlockedSet = new Set((state.stats.skills || []).map((item) => item.id));
-  const html = SKILL_RULES
-    .map((rule) => {
-      const unlocked = unlockedSet.has(rule.id);
-      const pathLabel = SKILL_PATH_LABELS[rule.path] || SKILL_PATH_LABELS.general;
-      return `
-        <article class="skill-crest ${unlocked ? "active" : "empty"}">
-          <p class="skill-crest-title">${escapeHtml(rule.name)} · 第${Math.max(1, Number(rule.tier) || 1)}阶</p>
-          <p class="skill-crest-sub">${escapeHtml(rule.description || "已掌握，可持续通过阅读强化。")}</p>
-          <p class="tip">${escapeHtml(pathLabel)} · ${escapeHtml(rule.unlockHint || "持续阅读可解锁")}</p>
-          <p class="tip">${escapeHtml(getSkillConditionProgressText(rule))}</p>
-          <p class="tip">${escapeHtml(getSkillPrerequisiteText(rule))}</p>
-        </article>
-      `;
-    })
-    .join("");
+  const html = SKILL_PATH_ORDER.map((path) => {
+    const rules = getSkillRulesByPath(path);
+    const unlockedCount = rules.filter((rule) => unlockedSet.has(rule.id)).length;
+    const rows = rules
+      .map((rule) => {
+        const unlocked = unlockedSet.has(rule.id);
+        return `
+          <article class="skill-crest ${unlocked ? "active" : "empty"}">
+            <p class="skill-crest-title">${escapeHtml(rule.name)} · 第${Math.max(1, Number(rule.tier) || 1)}阶</p>
+            <p class="skill-crest-sub">${escapeHtml(rule.description || "已掌握，可持续通过阅读强化。")}</p>
+            <p class="tip">${escapeHtml(rule.unlockHint || "持续阅读可解锁")}</p>
+            <p class="tip">${escapeHtml(getSkillConditionProgressText(rule))}</p>
+            <p class="tip">${escapeHtml(getSkillPrerequisiteText(rule))}</p>
+          </article>
+        `;
+      })
+      .join("");
+    return `
+      <section class="skill-ladder-group">
+        <div class="card-head">
+          <h3>${escapeHtml(SKILL_PATH_LABELS[path] || SKILL_PATH_LABELS.general)}</h3>
+          <span class="badge">${unlockedCount}/${rules.length}</span>
+        </div>
+        <div class="skill-ladder-list">${rows}</div>
+      </section>
+    `;
+  }).join("");
   openSheet("全部技能", html);
 }
 
@@ -5556,7 +6324,12 @@ function bindEvents() {
     onEntryOnlineSearch().catch(() => setEntryFeedback("联网搜索失败，请稍后再试。"));
   });
   elements.entryCustomModeBtn?.addEventListener("click", onEntryModeToggle);
-  elements.entryAddBtn?.addEventListener("click", addEntryBook);
+  elements.entryAddBtn?.addEventListener("click", () => {
+    addEntryBook().catch(() => {
+      setEntryFeedback("录入失败，请稍后重试。");
+      renderEntry();
+    });
+  });
   elements.entryBooksMoreBtn?.addEventListener("click", onEntryBooksMore);
 
   elements.panelAttributesMoreBtn?.addEventListener("click", onPanelAttributesMore);
@@ -5665,13 +6438,20 @@ function bindEvents() {
 
   elements.sheetBackBtn?.addEventListener("click", goBackSheet);
   elements.sheetCloseBtn?.addEventListener("click", closeSheet);
+  elements.sheetDialog?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeSheet();
+  });
+  elements.sheetDialog?.addEventListener("close", () => {
+    syncAfterNativeSheetClose();
+  });
   elements.sheetDialog?.addEventListener("click", (event) => {
     if (event.target === elements.sheetDialog) {
       closeSheet();
     }
   });
 
-  elements.sheetContent?.addEventListener("click", (event) => {
+  elements.sheetContent?.addEventListener("click", async (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
 
@@ -5712,9 +6492,10 @@ function bindEvents() {
 
     if (target.closest("#sheet-world-entry-add-btn")) {
       syncWorldEntrySheetFormToEntryElements();
-      const beforeCount = state.books.length;
-      addEntryBook();
-      const added = state.books.length > beforeCount;
+      const added = await addEntryBook().catch(() => {
+        setEntryFeedback("录入失败，请稍后重试。");
+        return false;
+      });
       renderWorldEntrySheet(
         added
           ? elements.entryFeedback?.textContent || "录入成功。"
@@ -5809,6 +6590,17 @@ function bindEvents() {
       return;
     }
 
+    const savePagesButton = target.closest("#sheet-book-pages-save-btn");
+    if (savePagesButton instanceof HTMLButtonElement) {
+      handleBookTotalPagesSave(savePagesButton.dataset.bookUid || sheetState.bookUid);
+      return;
+    }
+
+    if (target.closest("#sheet-book-pages-cancel-btn")) {
+      onPanelShelfMore({ skipHistory: true });
+      return;
+    }
+
     if (target.closest("#sheet-save-reflection-btn")) {
       handleReflectionSave();
       return;
@@ -5827,6 +6619,35 @@ function bindEvents() {
 
     if (target.closest("#sheet-share-copy-btn")) {
       onCopyShare().catch(() => setShareFeedback("复制失败，请稍后重试。"));
+      return;
+    }
+
+    const editPagesButton = target.closest(".sheet-edit-book-pages");
+    if (editPagesButton instanceof HTMLButtonElement) {
+      const uidValue = editPagesButton.dataset.bookUid;
+      if (!uidValue) return;
+      openBookPagesEditorSheet(uidValue);
+      return;
+    }
+
+    const filterButton = target.closest(".bookshelf-filter-btn");
+    if (filterButton instanceof HTMLButtonElement) {
+      const nextFilter = normalizeShelfFilter(filterButton.dataset.shelfFilter || "all");
+      sheetState.shelfFilter = nextFilter;
+      sheetState.shelfPage = 1;
+      onPanelShelfMore({ skipHistory: true });
+      return;
+    }
+
+    const pageButton = target.closest(".bookshelf-page-btn");
+    if (pageButton instanceof HTMLButtonElement) {
+      const action = pageButton.dataset.shelfPageAction;
+      if (action === "prev") {
+        sheetState.shelfPage = Math.max(1, Number(sheetState.shelfPage) - 1 || 1);
+      } else if (action === "next") {
+        sheetState.shelfPage = Math.max(1, Number(sheetState.shelfPage) + 1 || 1);
+      }
+      onPanelShelfMore({ skipHistory: true });
       return;
     }
 

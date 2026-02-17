@@ -13,16 +13,20 @@ function toCatalogBook(raw) {
     "未知作者";
   const rawPages = Number(raw.pages);
   const hasPages = Number.isFinite(rawPages) && rawPages > 0;
+  const safePages = hasPages ? Math.max(1, Math.min(4000, Math.round(rawPages))) : 0;
   const provider = String(raw?.source?.provider || "");
+  const syntheticPages =
+    safePages === 320 && (provider === "douban_hot_repo" || provider === "openlibrary");
   const pagesEstimated =
     !hasPages ||
-    (rawPages === 320 && provider === "douban_hot_repo" && !String(raw?.isbn13 || "").trim());
+    Boolean(raw?.pages_estimated) ||
+    syntheticPages;
   return {
     key: `${normalizeText(raw.title)}::${normalizeText(author)}`,
     title: raw.title,
     author,
     isbn: raw.isbn13 || "",
-    pages: Math.max(1, hasPages ? rawPages : 320),
+    pages: syntheticPages ? 0 : safePages,
     pagesEstimated,
     category: raw.category || "general",
     source: raw.source || null

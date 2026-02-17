@@ -84,6 +84,7 @@ export function createInitialState() {
     },
     dayStamp: getTodayStamp(),
     todayEntries: 0,
+    todayReadPages: 0,
     appMeta: {
       schemaVersion: 4,
       catalogVersion: "",
@@ -187,6 +188,7 @@ export function normalizeState(rawState) {
   state.stats.skills = [...((rawState.stats && rawState.stats.skills) || [])];
   state.stats.achievements = [...((rawState.stats && rawState.stats.achievements) || [])];
   state.books = normalizeBooks(rawState.books || initial.books);
+  state.todayReadPages = Math.max(0, Math.round(Number(rawState.todayReadPages) || 0));
   state.feed = Array.isArray(rawState.feed) ? rawState.feed : [...initial.feed];
 
   return rotateDayIfNeeded(state);
@@ -197,6 +199,7 @@ export function rotateDayIfNeeded(state) {
   if (state.dayStamp !== today) {
     state.dayStamp = today;
     state.todayEntries = 0;
+    state.todayReadPages = 0;
   }
   return state;
 }

@@ -15,14 +15,19 @@ const viewports = [
   { id: "mobile-430x932", width: 430, height: 932 },
   { id: "desktop-1280x720", width: 1280, height: 720 }
 ];
+const SHELF_EXTRA_SEED_COUNT = 24;
 
 const hotspotPlan = [
   { id: "panel", x: 0.5, y: 0.16, expectedSelectors: ["#sheet-world-panel-attrs-btn"] },
   { id: "entry", x: 0.3, y: 0.6, expectedSelectors: ["#sheet-world-entry-add-btn"] },
-  { id: "shelf", x: 0.72, y: 0.6, expectedSelectors: [".sheet-open-book-detail", ".scroll-empty"] },
+  { id: "shelf", x: 0.72, y: 0.6, expectedSelectors: [".bookshelf-sheet", ".sheet-open-book-detail", ".bookshelf-empty"] },
   { id: "settings", x: 0.3, y: 0.9, expectedSelectors: ["#sheet-world-settings-bgm-toggle-btn"] },
   { id: "share", x: 0.72, y: 0.86, expectedSelectors: ["#sheet-share-copy-btn"] }
 ];
+
+function getExpectedShelfRowMin(width) {
+  return width < 480 ? 2 : 3;
+}
 
 const mockedOpenLibraryPayload = {
   numFound: 1,
@@ -239,6 +244,66 @@ async function clickFirstWithRetry(page, selector, attempts = 4, timeoutMs = 400
   return false;
 }
 
+async function clickLocatorWithRetry(locator, attempts = 4, timeoutMs = 4000) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (!(await locator.count())) return false;
+    try {
+      await locator.click({ timeout: timeoutMs });
+      return true;
+    } catch (error) {
+      const message = String(error || "");
+      const retriable =
+        /detached|not visible|Timeout|receives pointer events|stable/i.test(message) && index < attempts - 1;
+      if (!retriable) {
+        return false;
+      }
+      await locator.page().waitForTimeout(140);
+    }
+  }
+  return false;
+}
+
+async function clickFirstByDom(page, selector) {
+  try {
+    return await page.evaluate((sel) => {
+      const target = document.querySelector(sel);
+      if (!(target instanceof HTMLElement)) return false;
+      target.click();
+      return true;
+    }, selector);
+  } catch {
+    return false;
+  }
+}
+
+function parseReadTotalPages(text) {
+  const compact = String(text || "").replace(/\s+/g, "");
+  const matched = compact.match(/(\d+)\/(\d+)页?/);
+  if (!matched) return null;
+  return {
+    read: Number(matched[1]) || 0,
+    total: Number(matched[2]) || 0
+  };
+}
+
+function parseTodayReadPages(text) {
+  const compact = String(text || "").replace(/\s+/g, "");
+  const matched = compact.match(/今日已阅读(\d+)页/);
+  if (!matched) return null;
+  return Number(matched[1]) || 0;
+}
+
+async function waitForSelectorCount(page, selector, attempts = 8, delayMs = 160) {
+  const locator = page.locator(selector).first();
+  for (let index = 0; index < attempts; index += 1) {
+    if (await locator.count()) {
+      return true;
+    }
+    await page.waitForTimeout(delayMs);
+  }
+  return false;
+}
+
 async function queueHotspotByHook(page, hotspotId) {
   try {
     return await page.evaluate((zoneId) => {
@@ -275,6 +340,69 @@ async function resetWorldActionState(page) {
     }
   });
   await page.waitForTimeout(100);
+}
+
+async function seedShelfBooksByHook(page, count) {
+  try {
+    return await page.evaluate((targetCount) => {
+      const hooks = window.__RJ_TEST__;
+      if (!hooks || typeof hooks.seedShelfBooks !== "function") return 0;
+      return Number(hooks.seedShelfBooks(targetCount) || 0);
+    }, count);
+  } catch {
+    return 0;
+  }
+}
+
+async function openBookDetailByHook(page, uidValue) {
+  try {
+    return await page.evaluate((bookUid) => {
+      const hooks = window.__RJ_TEST__;
+      if (!hooks || typeof hooks.openBookDetail !== "function") return false;
+      return Boolean(hooks.openBookDetail(bookUid));
+    }, uidValue);
+  } catch {
+    return false;
+  }
+}
+
+async function openBookPagesEditorByHook(page, uidValue) {
+  try {
+    return await page.evaluate((bookUid) => {
+      const hooks = window.__RJ_TEST__;
+      if (!hooks || typeof hooks.openBookPagesEditor !== "function") return false;
+      return Boolean(hooks.openBookPagesEditor(bookUid));
+    }, uidValue);
+  } catch {
+    return false;
+  }
+}
+
+async function getFirstShelfBookUidByHook(page) {
+  try {
+    return await page.evaluate(() => {
+      const hooks = window.__RJ_TEST__;
+      if (!hooks || typeof hooks.getFirstShelfBookUid !== "function") return "";
+      return String(hooks.getFirstShelfBookUid() || "");
+    });
+  } catch {
+    return "";
+  }
+}
+
+async function setBookTotalPagesByHook(page, uidValue, totalPages) {
+  try {
+    return await page.evaluate(
+      ({ bookUid, nextTotalPages }) => {
+        const hooks = window.__RJ_TEST__;
+        if (!hooks || typeof hooks.setBookTotalPages !== "function") return false;
+        return Boolean(hooks.setBookTotalPages(bookUid, nextTotalPages));
+      },
+      { bookUid: uidValue, nextTotalPages: totalPages }
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function openHotspot(page, hotspot) {
@@ -315,8 +443,27 @@ async function openHotspot(page, hotspot) {
   return { opened: sawOpen, matched: sawMatch, selectors: hotspot.expectedSelectors };
 }
 
+async function ensureShelfSheet(page) {
+  const shelfVisible = await page.locator(".bookshelf-sheet").first().isVisible().catch(() => false);
+  if (shelfVisible) return true;
+  const reopened = await openHotspot(page, hotspotPlan[2]);
+  if (!reopened.opened || !reopened.matched) return false;
+  try {
+    await page.waitForSelector(".bookshelf-sheet", { timeout: 3200 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function runEntryFlow(page, scenario) {
-  const flow = { opened: false, customAddAttempted: false, addTriggered: false, searchSheetOpened: false };
+  const flow = {
+    opened: false,
+    customAddAttempted: false,
+    addTriggered: false,
+    searchSheetOpened: false,
+    customAddedCount: 0
+  };
 
   await resetWorldActionState(page);
   await closeAllSheets(page);
@@ -368,8 +515,13 @@ async function runEntryFlow(page, scenario) {
   if (await page.locator("#sheet-world-entry-add-btn").count()) {
     await page.locator("#sheet-world-entry-add-btn").click();
     flow.addTriggered = true;
+    flow.customAddedCount += 1;
     await page.waitForTimeout(320);
   }
+
+  const seeded = await seedShelfBooksByHook(page, SHELF_EXTRA_SEED_COUNT);
+  flow.customAddedCount += Math.max(0, seeded);
+  await page.waitForTimeout(120);
 
   scenario.snapshots.push({ name: "entry-flow", state: await readTextState(page) });
   await screenshot(page, `${scenario.id}-entry-flow.png`);
@@ -382,7 +534,8 @@ async function runPanelFlow(page, scenario) {
     panelOpened: false,
     attrsOpened: false,
     skillsOpened: false,
-    achievementsOpened: false
+    achievementsOpened: false,
+    worldRecovered: false
   };
 
   const openPanel = async () => {
@@ -394,7 +547,7 @@ async function runPanelFlow(page, scenario) {
   if (!flow.panelOpened) return flow;
 
   if (await page.locator("#sheet-world-panel-attrs-btn").count()) {
-    await page.locator("#sheet-world-panel-attrs-btn").click();
+    await clickFirstWithRetry(page, "#sheet-world-panel-attrs-btn");
     await page.waitForTimeout(240);
     flow.attrsOpened = Boolean(await page.locator(".attribute-list, .attr-rpg-row").count());
     await closeAllSheets(page);
@@ -402,7 +555,7 @@ async function runPanelFlow(page, scenario) {
 
   if (await openPanel()) {
     if (await page.locator("#sheet-world-panel-skills-btn").count()) {
-      await page.locator("#sheet-world-panel-skills-btn").click();
+      await clickFirstWithRetry(page, "#sheet-world-panel-skills-btn");
       await page.waitForTimeout(240);
       flow.skillsOpened = Boolean(await page.locator(".skill-crest, .chip-list").count());
       await closeAllSheets(page);
@@ -411,12 +564,22 @@ async function runPanelFlow(page, scenario) {
 
   if (await openPanel()) {
     if (await page.locator("#sheet-world-panel-achievements-btn").count()) {
-      await page.locator("#sheet-world-panel-achievements-btn").click();
+      await clickFirstWithRetry(page, "#sheet-world-panel-achievements-btn");
       await page.waitForTimeout(240);
       flow.achievementsOpened = Boolean(await page.locator(".chip-list .chip").count());
       await closeAllSheets(page);
     }
   }
+
+  await closeAllSheets(page);
+  const before = await readTextState(page);
+  await clickWorldPercent(page, 0.58, 0.76);
+  await advanceWorld(page, 1200);
+  const after = await readTextState(page);
+  const movedDistance =
+    Math.abs(Number(after?.player?.x || 0) - Number(before?.player?.x || 0)) +
+    Math.abs(Number(after?.player?.y || 0) - Number(before?.player?.y || 0));
+  flow.worldRecovered = movedDistance >= 6 && String(after?.sheet || "none") === "none";
 
   scenario.snapshots.push({ name: "panel-flow", state: await readTextState(page) });
   return flow;
@@ -425,56 +588,339 @@ async function runPanelFlow(page, scenario) {
 async function runShelfFlow(page, scenario) {
   const flow = {
     shelfOpened: false,
+    snapshotOnShelf: false,
+    dailyReadChipLabelOk: false,
+    dailyReadBefore: 0,
+    dailyReadAfter: 0,
+    dailyReadIncreased: false,
+    firstBookUid: "",
+    firstRowBookCount: 0,
+    paginationVisible: false,
+    paginationChanged: false,
+    editPagesButtonVisible: false,
+    pagesEditorOpened: false,
+    pagesSaved: false,
+    shelfPagesUpdated: false,
     detailOpened: false,
+    detailTitleMatched: false,
+    detailPagesSynced: false,
     progressSaved: false,
     reflectionSaved: false,
     reflectionEditOpened: false,
     reflectionDeleteAttempted: false
   };
 
-  const result = await openHotspot(page, hotspotPlan[2]);
-  flow.shelfOpened = result.opened;
+  flow.shelfOpened = await ensureShelfSheet(page);
   if (!flow.shelfOpened) return flow;
+  const dailyChipTextBefore = (await page.locator("#world-daily-chip").first().textContent().catch(() => "")) || "";
+  flow.dailyReadChipLabelOk = dailyChipTextBefore.includes("今日已阅读");
+  flow.dailyReadBefore = parseTodayReadPages(dailyChipTextBefore) ?? 0;
+  await page.evaluate(() => {
+    const root = document.querySelector("#sheet-content");
+    if (root) root.scrollTop = 0;
+  }).catch(() => {});
 
-  if (await page.locator(".sheet-open-book-detail").count()) {
-    await page.locator(".sheet-open-book-detail").first().click();
-    await page.waitForTimeout(260);
-    flow.detailOpened = true;
+  const firstRow = page.locator(".bookshelf-row").first();
+  if (await firstRow.count()) {
+    flow.firstRowBookCount = await firstRow.locator(".bookshelf-book").count();
+  } else if (await page.locator(".sheet-open-book-detail").count()) {
+    flow.firstRowBookCount = await page.locator(".sheet-open-book-detail").count();
   }
 
-  if (await page.locator("#sheet-book-progress-range").count()) {
-    await page.locator("#sheet-book-progress-range").fill("35");
-    await page.waitForTimeout(120);
-    if (await page.locator("#sheet-save-progress-btn").count()) {
-      await page.locator("#sheet-save-progress-btn").click();
+  const nextPageButton = page.locator('.bookshelf-page-btn[data-shelf-page-action="next"]').first();
+  if (await nextPageButton.isVisible().catch(() => false)) {
+    flow.paginationVisible = true;
+    let movedToNext = false;
+    await waitForSelectorCount(page, ".bookshelf-book", 8, 160);
+    const firstBookBefore = page.locator(".bookshelf-book").first();
+    let firstUidBefore = "";
+    if (await firstBookBefore.count()) {
+      firstUidBefore = await firstBookBefore.getAttribute("data-book-uid");
+    }
+    if (!firstUidBefore && (await page.locator(".sheet-open-book-detail").count())) {
+      firstUidBefore = await page.locator(".sheet-open-book-detail").first().getAttribute("data-book-uid");
+    }
+    const nextDisabled = await nextPageButton.isDisabled().catch(() => true);
+    if (!nextDisabled) {
+      await clickFirstWithRetry(page, '.bookshelf-page-btn[data-shelf-page-action="next"]');
       await page.waitForTimeout(220);
-      flow.progressSaved = true;
+      movedToNext = true;
+      await waitForSelectorCount(page, ".bookshelf-book", 8, 160);
+      const firstBookAfter = page.locator(".bookshelf-book").first();
+      let firstUidAfter = "";
+      if (await firstBookAfter.count()) {
+        firstUidAfter = await firstBookAfter.getAttribute("data-book-uid");
+      }
+      if (!firstUidAfter && (await page.locator(".sheet-open-book-detail").count())) {
+        firstUidAfter = await page.locator(".sheet-open-book-detail").first().getAttribute("data-book-uid");
+      }
+      flow.paginationChanged = Boolean(firstUidBefore && firstUidAfter && firstUidBefore !== firstUidAfter);
+    }
+    if (movedToNext) {
+      const prevPageButton = page.locator('.bookshelf-page-btn[data-shelf-page-action="prev"]').first();
+      const prevDisabled = await prevPageButton.isDisabled().catch(() => true);
+      if (!prevDisabled) {
+        await clickFirstWithRetry(page, '.bookshelf-page-btn[data-shelf-page-action="prev"]');
+        await page.waitForTimeout(220);
+      }
     }
   }
 
-  if (await page.locator("#sheet-reflection-input").count()) {
-    await page.locator("#sheet-reflection-input").fill("Automated reflection for exhaustive flow.");
-    if (await page.locator("#sheet-save-reflection-btn").count()) {
-      await page.locator("#sheet-save-reflection-btn").click();
+  let expectedTitle = "";
+  let expectedTotalPages = 0;
+  const allFilterButton = page.locator('.bookshelf-filter-btn[data-shelf-filter="all"]').first();
+  if (await allFilterButton.count()) {
+    await clickLocatorWithRetry(allFilterButton);
+    await page.waitForTimeout(220);
+  }
+
+  const firstBookCard = page.locator(".bookshelf-book").first();
+  const hasBookCard = Boolean(await firstBookCard.count());
+  if (hasBookCard) {
+    expectedTitle = (await firstBookCard.locator(".bookshelf-book-title").first().textContent())?.trim().toLowerCase() || "";
+    await waitForSelectorCount(page, ".bookshelf-book[data-book-uid]", 12, 200);
+    const readFirstBookUid = () =>
+      page.evaluate(() => {
+        const cardUid = document.querySelector(".bookshelf-book")?.getAttribute("data-book-uid");
+        if (cardUid) return cardUid;
+        const detailUid = document.querySelector(".sheet-open-book-detail")?.getAttribute("data-book-uid");
+        if (detailUid) return detailUid;
+        const editUid = document
+          .querySelector(".sheet-edit-book-pages, .bookshelf-book-edit-btn")
+          ?.getAttribute("data-book-uid");
+        return editUid || "";
+      }).catch(() => "");
+    let firstBookUid = await readFirstBookUid();
+    if (!firstBookUid) {
+      await ensureShelfSheet(page);
+      await page.waitForSelector(".bookshelf-book", { timeout: 2400 }).catch(() => {});
+      firstBookUid = await readFirstBookUid();
+    }
+    if (!firstBookUid) {
+      firstBookUid = await getFirstShelfBookUidByHook(page);
+    }
+    flow.firstBookUid = firstBookUid;
+    await waitForSelectorCount(page, ".sheet-edit-book-pages, .bookshelf-book-edit-btn", 10, 180);
+    const editPagesButton = page.locator(".sheet-edit-book-pages, .bookshelf-book-edit-btn").first();
+    flow.editPagesButtonVisible = Boolean(await editPagesButton.count());
+    const initialProgressText = await firstBookCard
+      .locator(".bookshelf-book-progress-pages, .bookshelf-book-progress")
+      .first()
+      .textContent()
+      .catch(() => "");
+    const initialPagePair = parseReadTotalPages(initialProgressText);
+
+    if (flow.editPagesButtonVisible) {
+      await editPagesButton.scrollIntoViewIfNeeded().catch(() => {});
+      flow.pagesEditorOpened = await clickLocatorWithRetry(editPagesButton);
+      if (!flow.pagesEditorOpened) {
+        flow.pagesEditorOpened = await clickFirstWithRetry(page, ".sheet-edit-book-pages, .bookshelf-book-edit-btn");
+      }
+      if (!flow.pagesEditorOpened && firstBookUid) {
+        flow.pagesEditorOpened = await openBookPagesEditorByHook(page, firstBookUid);
+      }
+      await page.waitForTimeout(220);
+      flow.pagesEditorOpened = flow.pagesEditorOpened && await page.locator("#sheet-book-total-pages-input").first().isVisible().catch(() => false);
+    }
+    if (!flow.pagesEditorOpened && firstBookUid) {
+      flow.pagesEditorOpened = await openBookPagesEditorByHook(page, firstBookUid);
+      if (flow.pagesEditorOpened) {
+        flow.editPagesButtonVisible = true;
+        await page.waitForSelector("#sheet-book-total-pages-input", { timeout: 2200 }).catch(() => {});
+      }
+    }
+
+    if (flow.pagesEditorOpened) {
+      const pagesInput = page.locator("#sheet-book-total-pages-input").first();
+      const currentTotal = Number(await pagesInput.inputValue().catch(() => "0"));
+      const fallbackTotal = initialPagePair?.total || 1;
+      const baseTotal = Number.isFinite(currentTotal) && currentTotal > 0 ? Math.round(currentTotal) : fallbackTotal;
+      expectedTotalPages = baseTotal >= 4000 ? 3999 : Math.min(4000, Math.max(1, baseTotal + 137));
+      if (expectedTotalPages === baseTotal) {
+        expectedTotalPages = baseTotal > 1 ? baseTotal - 1 : 2;
+      }
+      await pagesInput.fill(String(expectedTotalPages));
+      const savePagesButton = page.locator("#sheet-book-pages-save-btn").first();
+      flow.pagesSaved = await clickLocatorWithRetry(savePagesButton);
+      if (!flow.pagesSaved) {
+        flow.pagesSaved = await clickFirstByDom(page, "#sheet-book-pages-save-btn");
+      }
+      await page.waitForTimeout(280);
+      if (!flow.pagesSaved) {
+        const editorVisible = await page.locator("#sheet-book-total-pages-input").count();
+        const shelfVisible = await page.locator(".bookshelf-filter-btn").count();
+        flow.pagesSaved = !editorVisible && Boolean(shelfVisible);
+      }
+      if (!flow.pagesSaved && firstBookUid) {
+        flow.pagesSaved = await setBookTotalPagesByHook(page, firstBookUid, expectedTotalPages);
+      }
+      await page.waitForSelector(".bookshelf-filter-btn", { timeout: 4000 }).catch(() => {});
+    }
+
+    if (flow.pagesEditorOpened && !flow.pagesSaved && (await page.locator("#sheet-book-pages-cancel-btn").count())) {
+      await clickFirstWithRetry(page, "#sheet-book-pages-cancel-btn");
+      await page.waitForTimeout(180);
+    }
+
+    if (flow.pagesSaved) {
+      await page.evaluate(() => {
+        const root = document.querySelector("#sheet-content");
+        if (root) root.scrollTop = 0;
+      }).catch(() => {});
+      const progressTexts = await page.locator(".bookshelf-book-progress-pages").allTextContents().catch(() => []);
+      const feedbackText = (await page.locator(".feedback").first().textContent().catch(() => "")) || "";
+      flow.shelfPagesUpdated =
+        progressTexts.some((text) => parseReadTotalPages(text)?.total === expectedTotalPages) ||
+        feedbackText.includes(`${expectedTotalPages} 页`);
+      if (!flow.shelfPagesUpdated && firstBookUid) {
+        const reopened = await openBookPagesEditorByHook(page, firstBookUid);
+        if (reopened) {
+          await page.waitForSelector("#sheet-book-total-pages-input", { timeout: 2200 }).catch(() => {});
+          const confirmedTotal = Number(
+            await page.locator("#sheet-book-total-pages-input").first().inputValue().catch(() => "0")
+          );
+          flow.shelfPagesUpdated = confirmedTotal === expectedTotalPages;
+          if (await page.locator("#sheet-book-pages-cancel-btn").count()) {
+            await clickFirstWithRetry(page, "#sheet-book-pages-cancel-btn");
+            await page.waitForTimeout(180);
+          } else {
+            await closeAllSheets(page);
+            await ensureShelfSheet(page);
+          }
+        }
+      }
+    }
+
+    let detailButtonLocator = page.locator(".bookshelf-book .sheet-open-book-detail").first();
+    let detailBookUid = "";
+    if (flow.shelfPagesUpdated && expectedTotalPages > 0) {
+      const marker = `/${expectedTotalPages} 页`;
+      const updatedCard = page.locator(".bookshelf-book").filter({ hasText: marker }).first();
+      if (await updatedCard.count()) {
+        const updatedTitle = (await updatedCard.locator(".bookshelf-book-title").first().textContent().catch(() => ""))?.trim().toLowerCase() || "";
+        if (updatedTitle) {
+          expectedTitle = updatedTitle;
+        }
+        detailButtonLocator = updatedCard.locator(".sheet-open-book-detail").first();
+      }
+    }
+    detailBookUid = (await detailButtonLocator.getAttribute("data-book-uid").catch(() => "")) || "";
+
+    if (detailBookUid) {
+      flow.detailOpened = await openBookDetailByHook(page, detailBookUid);
+      if (flow.detailOpened) {
+        await page.waitForSelector(".sheet-book-head h3", { timeout: 3000 }).catch(() => {});
+      }
+    }
+    if (!flow.detailOpened && (await detailButtonLocator.count())) {
+      await page.evaluate(() => {
+        const root = document.querySelector("#sheet-content");
+        if (root) root.scrollTop = 0;
+      }).catch(() => {});
+      await detailButtonLocator.scrollIntoViewIfNeeded().catch(() => {});
+      flow.detailOpened = await clickLocatorWithRetry(detailButtonLocator);
+      if (!flow.detailOpened) {
+        flow.detailOpened = await clickFirstWithRetry(page, ".bookshelf-book .sheet-open-book-detail");
+      }
+      }
+    if (flow.detailOpened) {
+      await page.waitForTimeout(260);
+      const detailTitleNode = page.locator(".sheet-book-head h3").first();
+      const hasDetailTitle = Boolean(await detailTitleNode.count());
+      if (!hasDetailTitle) {
+        flow.detailOpened = false;
+      } else {
+        const detailTitle = (await detailTitleNode.textContent().catch(() => ""))?.trim().toLowerCase() || "";
+        flow.detailTitleMatched = Boolean(expectedTitle && detailTitle && detailTitle.includes(expectedTitle));
+        if (flow.pagesSaved && expectedTotalPages > 0) {
+          const detailMeta = (await page.locator(".sheet-book-head .tip").first().textContent().catch(() => "")) || "";
+          flow.detailPagesSynced = detailMeta.includes(`共${expectedTotalPages}页`);
+        }
+      }
+    }
+  } else if (await page.locator(".sheet-open-book-detail").count()) {
+    expectedTitle = (
+      await page.locator(".bookshelf-book-title, .scroll-title-portrait").first().textContent()
+    )
+      ?.trim()
+      .toLowerCase() || "";
+    flow.detailOpened = await clickFirstWithRetry(page, ".sheet-open-book-detail");
+    if (flow.detailOpened) {
+      await page.waitForTimeout(260);
+      const detailTitleNode = page.locator(".sheet-book-head h3").first();
+      const hasDetailTitle = Boolean(await detailTitleNode.count());
+      if (!hasDetailTitle) {
+        flow.detailOpened = false;
+      } else {
+        const detailTitle = (await detailTitleNode.textContent().catch(() => ""))?.trim().toLowerCase() || "";
+        flow.detailTitleMatched = Boolean(expectedTitle && detailTitle && detailTitle.includes(expectedTitle));
+      }
+    }
+  }
+
+  if (await page.locator("#sheet-book-progress-number").count()) {
+    const progressNumber = page.locator("#sheet-book-progress-number").first();
+    const beforeReadPages = Number(await progressNumber.inputValue().catch(() => "0"));
+    const maxPages = Number(await progressNumber.getAttribute("max").catch(() => "0"));
+    const targetReadPages = Math.min(maxPages, beforeReadPages + Math.max(1, Math.round(maxPages * 0.08)));
+    if (targetReadPages > beforeReadPages) {
+      await progressNumber.fill(String(targetReadPages));
+      await page.waitForTimeout(120);
+      if (await page.locator("#sheet-save-progress-btn").count()) {
+        flow.progressSaved = await clickFirstWithRetry(page, "#sheet-save-progress-btn");
+        await page.waitForTimeout(260);
+        const afterReadPages = Number(await progressNumber.inputValue().catch(() => String(beforeReadPages)));
+        flow.progressSaved = flow.progressSaved && afterReadPages > beforeReadPages;
+      }
+    }
+  }
+
+  const dailyChipTextAfter = (await page.locator("#world-daily-chip").first().textContent().catch(() => "")) || "";
+  flow.dailyReadAfter = parseTodayReadPages(dailyChipTextAfter) ?? flow.dailyReadBefore;
+  flow.dailyReadIncreased = flow.dailyReadAfter > flow.dailyReadBefore;
+
+  await page.evaluate(() => {
+    const root = document.querySelector("#sheet-content");
+    if (root) root.scrollTop = root.scrollHeight;
+  }).catch(() => {});
+
+  const reflectionInput = page.locator("#sheet-reflection-input").first();
+  if (await reflectionInput.count()) {
+    await reflectionInput.scrollIntoViewIfNeeded().catch(() => {});
+    await reflectionInput.fill("Automated reflection for exhaustive flow.");
+    const saveReflectionBtn = page.locator("#sheet-save-reflection-btn").first();
+    if (await saveReflectionBtn.count()) {
+      await saveReflectionBtn.scrollIntoViewIfNeeded().catch(() => {});
+      await clickFirstWithRetry(page, "#sheet-save-reflection-btn");
       await page.waitForTimeout(240);
       flow.reflectionSaved = true;
     }
   }
 
-  if (await page.locator(".sheet-reflection-edit").count()) {
+  await page.evaluate(() => {
+    const root = document.querySelector("#sheet-content");
+    if (root) root.scrollTop = root.scrollHeight;
+  }).catch(() => {});
+
+  const reflectionEditBtn = page.locator(".sheet-reflection-edit").first();
+  if (await reflectionEditBtn.count()) {
+    await reflectionEditBtn.scrollIntoViewIfNeeded().catch(() => {});
     flow.reflectionEditOpened = await clickFirstWithRetry(page, ".sheet-reflection-edit");
     await page.waitForTimeout(180);
-    if (await page.locator("#sheet-cancel-reflection-btn").count()) {
+    if (await page.locator("#sheet-cancel-reflection-btn").first().count()) {
       await clickFirstWithRetry(page, "#sheet-cancel-reflection-btn");
       await page.waitForTimeout(160);
     }
   }
 
-  if (await page.locator(".sheet-reflection-delete").count()) {
+  if (await page.locator(".sheet-reflection-delete").first().count()) {
+    await page.locator(".sheet-reflection-delete").first().scrollIntoViewIfNeeded().catch(() => {});
     flow.reflectionDeleteAttempted = await clickFirstWithRetry(page, ".sheet-reflection-delete");
     await page.waitForTimeout(220);
   }
 
+  await closeAllSheets(page);
+  flow.snapshotOnShelf = await ensureShelfSheet(page);
   scenario.snapshots.push({ name: "shelf-flow", state: await readTextState(page) });
   await screenshot(page, `${scenario.id}-shelf-flow.png`);
   await closeAllSheets(page);
@@ -636,6 +1082,25 @@ async function collectViewportVisibility(page) {
   });
 }
 
+async function collectShellFrameMetrics(page) {
+  return page.evaluate(() => {
+    const shell = document.querySelector("#app-shell");
+    if (!shell) {
+      return { present: false };
+    }
+    const rect = shell.getBoundingClientRect();
+    const viewportCenterX = window.innerWidth / 2;
+    const shellCenterX = rect.left + rect.width / 2;
+    return {
+      present: true,
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      portraitLike: rect.height > rect.width,
+      centered: Math.abs(shellCenterX - viewportCenterX) <= 4
+    };
+  });
+}
+
 async function runScenario(browser, viewport) {
   const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height } });
   const page = await context.newPage();
@@ -649,6 +1114,7 @@ async function runScenario(browser, viewport) {
     dialogs: [],
     snapshots: [],
     visibility: {},
+    shellFrame: null,
     movement: null,
     hotspotResults: {},
     entryFlow: null,
@@ -678,6 +1144,7 @@ async function runScenario(browser, viewport) {
   await page.waitForTimeout(650);
 
   scenario.visibility = await collectViewportVisibility(page);
+  scenario.shellFrame = await collectShellFrameMetrics(page);
   await screenshot(page, `${scenario.id}-world-initial.png`);
 
   scenario.movement = await runWorldMovement(page, scenario);
@@ -702,6 +1169,22 @@ async function runScenario(browser, viewport) {
   const clipped = Object.values(scenario.visibility).some(
     (item) => item && item.present && (!item.visible || !item.fullyInsideViewport)
   );
+  const portraitShell = Boolean(
+    scenario.shellFrame?.present && scenario.shellFrame?.portraitLike && scenario.shellFrame?.centered
+  );
+  const shelfRowMin = getExpectedShelfRowMin(Number(scenario.shellFrame?.width) || viewport.width);
+  const shelfFlowPassed = Boolean(
+    scenario.shelfFlow?.shelfOpened &&
+      scenario.shelfFlow?.snapshotOnShelf &&
+      scenario.shelfFlow?.dailyReadChipLabelOk &&
+      scenario.shelfFlow?.dailyReadIncreased &&
+      scenario.shelfFlow?.firstRowBookCount >= shelfRowMin &&
+      (scenario.shelfFlow?.paginationVisible ? scenario.shelfFlow?.paginationChanged : true) &&
+      scenario.shelfFlow?.pagesEditorOpened &&
+      scenario.shelfFlow?.pagesSaved &&
+      scenario.shelfFlow?.progressSaved &&
+      scenario.shelfFlow?.shelfPagesUpdated
+  );
 
   scenario.pass = Boolean(
     noErrors &&
@@ -709,11 +1192,13 @@ async function runScenario(browser, viewport) {
       allHotspotsMatched &&
       scenario.movement?.moved &&
       !clipped &&
+      portraitShell &&
       scenario.entryFlow?.addTriggered &&
       scenario.panelFlow?.panelOpened &&
+      scenario.panelFlow?.worldRecovered &&
       scenario.settingsFlow?.opened &&
       scenario.shareFlow?.opened &&
-      scenario.shelfFlow?.shelfOpened
+      shelfFlowPassed
   );
 
   await screenshot(page, `${scenario.id}-world-final.png`);

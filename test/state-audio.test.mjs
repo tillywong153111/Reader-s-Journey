@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createInitialState, normalizeState } from "../src/lib/state.mjs";
+import { createInitialState, normalizeState, rotateDayIfNeeded } from "../src/lib/state.mjs";
 
 test("initial state contains audio profile defaults", () => {
   const state = createInitialState();
   assert.equal(state.appMeta.schemaVersion, 4);
+  assert.equal(state.todayReadPages, 0);
   assert.deepEqual(state.profile.audio, {
     masterEnabled: true,
     bgmEnabled: true,
@@ -79,4 +80,21 @@ test("normalizeState migrates legacy books with reflections timeline", () => {
   assert.equal(state.books[0].reflections[0].text.length <= 1000, true);
   assert.equal(state.books[0].reflections[0].progressAt <= 100, true);
   assert.equal(Number.isFinite(state.books[0].updatedAt), true);
+});
+
+test("normalizeState keeps todayReadPages non-negative integer", () => {
+  const state = normalizeState({
+    todayReadPages: -8.7
+  });
+  assert.equal(state.todayReadPages, 0);
+});
+
+test("rotateDayIfNeeded resets daily counters on day change", () => {
+  const state = createInitialState();
+  state.dayStamp = "2000-01-01";
+  state.todayEntries = 2;
+  state.todayReadPages = 123;
+  rotateDayIfNeeded(state);
+  assert.equal(state.todayEntries, 0);
+  assert.equal(state.todayReadPages, 0);
 });

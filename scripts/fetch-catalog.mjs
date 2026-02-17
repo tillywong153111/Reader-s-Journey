@@ -294,7 +294,8 @@ function parseDoubanWorkbook(buffer, filePath) {
       authors: [author || "未知作者"],
       author_display: author || "未知作者",
       isbn13: "",
-      pages: 320,
+      pages: 0,
+      pages_estimated: true,
       category,
       language: "chi",
       publisher: "",
@@ -403,6 +404,18 @@ function dedupeBooks(books, top250TitleSet) {
     const title = String(rawBook.title || "").trim();
     const author = String(rawBook.author_display || "未知作者").trim() || "未知作者";
     if (!title) continue;
+    const source = rawBook.source || {
+      provider: "unknown",
+      work_key: "",
+      work_url: "",
+      query: ""
+    };
+    const parsedPages = Number(rawBook.pages);
+    const hasPages = Number.isFinite(parsedPages) && parsedPages > 0;
+    const normalizedPages = hasPages ? Math.max(40, Math.min(2000, Math.round(parsedPages))) : 0;
+    const syntheticPages =
+      normalizedPages === 320 && ["douban_hot_repo", "openlibrary"].includes(String(source.provider || ""));
+    const pagesEstimated = Boolean(rawBook.pages_estimated) || !hasPages || syntheticPages;
 
     const normalized = {
       ...rawBook,
@@ -412,16 +425,12 @@ function dedupeBooks(books, top250TitleSet) {
       authors: Array.isArray(rawBook.authors) && rawBook.authors.length > 0 ? rawBook.authors : [author],
       category: CATEGORIES.includes(rawBook.category) ? rawBook.category : "general",
       isbn13: normalizeIsbn13(rawBook.isbn13 || ""),
-      pages: Math.max(40, Math.min(2000, Number(rawBook.pages) || 320)),
+      pages: syntheticPages ? 0 : normalizedPages,
+      pages_estimated: pagesEstimated,
       language: String(rawBook.language || (hasCjk(title) || hasCjk(author) ? "chi" : "und")),
       publisher: String(rawBook.publisher || ""),
       published_year: Number.isFinite(Number(rawBook.published_year)) ? Number(rawBook.published_year) : null,
-      source: rawBook.source || {
-        provider: "unknown",
-        work_key: "",
-        work_url: "",
-        query: ""
-      }
+      source
     };
 
     const dedupeKey = `${normalized.title_norm}::${normalizeText(author)}`;
