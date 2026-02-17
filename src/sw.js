@@ -1,4 +1,4 @@
-const CACHE_NAME = "readers-journey-v21";
+const CACHE_NAME = "readers-journey-v22";
 const OFFLINE_URL = "./offline.html";
 const APP_SHELL = [
   "./",

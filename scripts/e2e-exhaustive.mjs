@@ -634,6 +634,7 @@ async function runShelfFlow(page, scenario) {
     const root = document.querySelector("#sheet-content");
     if (root) root.scrollTop = 0;
   }).catch(() => {});
+  await page.waitForSelector(".bookshelf-book, .sheet-open-book-detail", { timeout: 3600 }).catch(() => {});
 
   const pickReadableBookUid = () =>
     page
@@ -744,6 +745,9 @@ async function runShelfFlow(page, scenario) {
     }
     if (!firstBookUid) {
       firstBookUid = await getFirstShelfBookUidByHook(page);
+    }
+    if (!firstBookUid) {
+      firstBookUid = (await page.locator(".sheet-open-book-detail").first().getAttribute("data-book-uid").catch(() => "")) || "";
     }
     selectedBookUid = firstBookUid;
     flow.firstBookUid = firstBookUid;
@@ -1022,13 +1026,11 @@ async function runShareFlow(page, scenario) {
   }
 
   if (await page.locator("#sheet-share-copy-invite-btn").count()) {
-    await page.locator("#sheet-share-copy-invite-btn").click();
-    flow.inviteCopyClicked = true;
+    flow.inviteCopyClicked = await clickFirstWithRetry(page, "#sheet-share-copy-invite-btn");
     await page.waitForTimeout(120);
   }
   if (await page.locator("#sheet-share-copy-btn").count()) {
-    await page.locator("#sheet-share-copy-btn").click();
-    flow.shareCopyClicked = true;
+    flow.shareCopyClicked = await clickFirstWithRetry(page, "#sheet-share-copy-btn");
     await page.waitForTimeout(120);
   }
 
@@ -1174,14 +1176,14 @@ async function collectShellFrameMetrics(page) {
       return { present: false };
     }
     const rect = shell.getBoundingClientRect();
-    const viewportCenterX = window.innerWidth / 2;
-    const shellCenterX = rect.left + rect.width / 2;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
     return {
       present: true,
       width: Math.round(rect.width),
       height: Math.round(rect.height),
       portraitLike: rect.height > rect.width,
-      centered: Math.abs(shellCenterX - viewportCenterX) <= 4
+      fillsViewport: rect.left <= 1 && rect.top <= 1 && rect.right >= vw - 1 && rect.bottom >= vh - 1
     };
   });
 }
@@ -1254,9 +1256,8 @@ async function runScenario(browser, viewport) {
   const clipped = Object.values(scenario.visibility).some(
     (item) => item && item.present && (!item.visible || !item.fullyInsideViewport)
   );
-  const portraitShell = Boolean(
-    scenario.shellFrame?.present && scenario.shellFrame?.portraitLike && scenario.shellFrame?.centered
-  );
+  const fullScreenShell = Boolean(scenario.shellFrame?.present && scenario.shellFrame?.fillsViewport);
+  const portraitPreferred = viewport.id.startsWith("mobile") ? Boolean(scenario.shellFrame?.portraitLike) : true;
   const shelfRowMin = getExpectedShelfRowMin(Number(scenario.shellFrame?.width) || viewport.width);
   const shelfFlowPassed = Boolean(
     scenario.shelfFlow?.shelfOpened &&
@@ -1277,7 +1278,8 @@ async function runScenario(browser, viewport) {
       allHotspotsMatched &&
       scenario.movement?.moved &&
       !clipped &&
-      portraitShell &&
+      fullScreenShell &&
+      portraitPreferred &&
       scenario.entryFlow?.addTriggered &&
       scenario.panelFlow?.panelOpened &&
       scenario.panelFlow?.worldRecovered &&

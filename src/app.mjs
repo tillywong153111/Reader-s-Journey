@@ -3041,7 +3041,7 @@ function initWorldEngine() {
     if (this.textures.exists(key)) return;
     const texture = this.textures.createCanvas(key, width, height);
     const ctx = texture.getContext();
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
     painter(ctx, width, height);
     texture.refresh();
   };
@@ -3389,18 +3389,33 @@ function initWorldEngine() {
         const bodyW = width - 36;
         const bodyH = height - 34;
 
-        ctx.fillStyle = "#5a4124";
-        ctx.fillRect(left - 2, top - 2, bodyW + 4, bodyH + 4);
-        ctx.fillStyle = config.wall || "#e8d7b4";
-        ctx.fillRect(left, top, bodyW, bodyH);
-        ctx.fillStyle = "#f7efd8";
-        ctx.fillRect(left + 3, top + 3, bodyW - 6, 4);
+        const wallTop = config.wallTop || "#f7ebcd";
+        const wallBottom = config.wallBottom || config.wall || "#e8d7b4";
+        const roofTop = config.roofTop || "#f7c48d";
+        const roofBottom = config.roofBottom || config.roof || "#cb8755";
 
+        ctx.fillStyle = "#5a4124";
+        ctx.fillRect(left - 3, top - 3, bodyW + 6, bodyH + 6);
+
+        const wallGradient = ctx.createLinearGradient(left, top, left, top + bodyH);
+        wallGradient.addColorStop(0, wallTop);
+        wallGradient.addColorStop(1, wallBottom);
+        ctx.fillStyle = wallGradient;
+        ctx.fillRect(left, top, bodyW, bodyH);
+
+        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.fillRect(left + 4, top + 4, bodyW - 8, 4);
+        ctx.fillStyle = "rgba(110, 70, 34, 0.22)";
+        ctx.fillRect(left + bodyW - 6, top + 6, 4, bodyH - 12);
+
+        const roofGradient = ctx.createLinearGradient(0, 16, 0, 34);
+        roofGradient.addColorStop(0, roofTop);
+        roofGradient.addColorStop(1, roofBottom);
         ctx.fillStyle = config.roofShadow || "#8a532f";
         ctx.fillRect(8, 24, width - 16, 12);
-        ctx.fillStyle = config.roof || "#cb8755";
+        ctx.fillStyle = roofGradient;
         ctx.fillRect(4, 16, width - 8, 18);
-        ctx.fillStyle = config.roofHighlight || "#e09f6a";
+        ctx.fillStyle = config.roofHighlight || "rgba(255, 231, 184, 0.95)";
         for (let x = 10; x < width - 10; x += 11) {
           ctx.fillRect(x, 18, 7, 2);
         }
@@ -3409,7 +3424,10 @@ function initWorldEngine() {
 
         ctx.fillStyle = "#61472a";
         ctx.fillRect(width / 2 - 13, height - 43, 26, 39);
-        ctx.fillStyle = "#f6ebd2";
+        const doorGradient = ctx.createLinearGradient(0, height - 38, 0, height - 10);
+        doorGradient.addColorStop(0, "#f8edd6");
+        doorGradient.addColorStop(1, "#e9d5b2");
+        ctx.fillStyle = doorGradient;
         ctx.fillRect(width / 2 - 9, height - 38, 18, 27);
         ctx.fillStyle = "#6b4f2f";
         ctx.fillRect(width / 2 - 1, height - 38, 2, 27);
@@ -3418,13 +3436,17 @@ function initWorldEngine() {
 
         const winX = [left + 12, width - left - 28];
         const winY = [top + 14, top + 40];
-        ctx.fillStyle = config.window || "#94cfff";
+        const windowColor = config.window || "#94cfff";
         for (const x of winX) {
           for (const y of winY) {
+            const windowGradient = ctx.createLinearGradient(x, y, x, y + 14);
+            windowGradient.addColorStop(0, "#d9f4ff");
+            windowGradient.addColorStop(1, windowColor);
+            ctx.fillStyle = windowGradient;
             ctx.fillRect(x, y, 16, 14);
             ctx.fillStyle = "#d6f0ff";
             ctx.fillRect(x + 2, y + 2, 12, 4);
-            ctx.fillStyle = config.window || "#94cfff";
+            ctx.fillStyle = windowColor;
           }
         }
 
@@ -3943,18 +3965,19 @@ function initWorldEngine() {
   scene.createAmbientLayers = function createAmbientLayers() {
     const mapW = WORLD_MAP_WIDTH;
     const mapH = WORLD_MAP_HEIGHT;
-    this.add.rectangle(mapW / 2, mapH / 2, mapW, mapH, 0x87d469, 1).setDepth(-32);
-    this.add.rectangle(mapW / 2, mapH * 0.18, mapW, mapH * 0.36, 0xf1f9ff, 0.28).setDepth(-30);
-    this.add.rectangle(mapW / 2, mapH * 0.86, mapW, mapH * 0.5, 0x77c95f, 0.24).setDepth(-28);
+    this.add.rectangle(mapW / 2, mapH / 2, mapW, mapH, 0x96dd79, 1).setDepth(-32);
+    this.add.rectangle(mapW * 0.5, mapH * 0.22, mapW * 1.1, mapH * 0.42, 0xf5fbff, 0.34).setDepth(-31);
+    this.add.rectangle(mapW * 0.52, mapH * 0.82, mapW * 1.2, mapH * 0.62, 0x80d06a, 0.28).setDepth(-30);
+    this.add.ellipse(mapW * 0.5, mapH * 0.52, mapW * 0.88, mapH * 0.68, 0xfff1cf, 0.08).setDepth(-29);
 
     for (let i = 0; i < 24; i += 1) {
       const cloud = this.add.ellipse(
         140 + Math.random() * (mapW - 280),
         110 + Math.random() * (mapH * 0.18),
-        70 + Math.random() * 56,
-        12 + Math.random() * 10,
+        78 + Math.random() * 62,
+        16 + Math.random() * 12,
         0xffffff,
-        0.2
+        0.24
       );
       cloud.setDepth(-24);
       this.tweens.add({
@@ -4248,6 +4271,10 @@ function initWorldEngine() {
     this.waterLayer = this.createTileLayer(this.waterData, 6, 0.94);
     this.pathLayer = this.createTileLayer(this.pathData, 10);
     this.decoLayer = this.createTileLayer(this.decoData, 12);
+    this.groundLayer.setTint(0xd9f5bd);
+    this.waterLayer.setTint(0x8adfff);
+    this.pathLayer.setTint(0xffe0b0);
+    this.decoLayer.setTint(0xf2ffd8);
     this.tweens.add({
       targets: this.waterLayer,
       alpha: 0.88,
@@ -4511,14 +4538,14 @@ function initWorldEngine() {
     type: PhaserApi.CANVAS,
     parent: elements.worldCanvas,
     transparent: false,
-    pixelArt: true,
-    antialias: false,
-    roundPixels: true,
+    pixelArt: false,
+    antialias: true,
+    roundPixels: false,
     backgroundColor: "#72abd9",
     render: {
-      pixelArt: true,
-      antialias: false,
-      roundPixels: true,
+      pixelArt: false,
+      antialias: true,
+      roundPixels: false,
       clearBeforeRender: true
     },
     scale: {

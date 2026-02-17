@@ -5535,3 +5535,121 @@ dialog::backdrop {
     font-size: 12px;
   }
 }
+
+/* v2.3 fullscreen + portrait-first visual lock */
+:root {
+  --app-frame-max-width: 100vw;
+  --app-frame-gap: 0px;
+  --app-frame-width: 100vw;
+}
+
+body {
+  padding: 0;
+  justify-content: stretch;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.shell {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.sheet-dialog {
+  left: 0;
+  transform: none;
+  width: 100vw;
+  max-width: 100vw;
+}
+
+.tabbar {
+  padding-left: max(8px, env(safe-area-inset-left, 0px));
+  padding-right: max(8px, env(safe-area-inset-right, 0px));
+}
+
+.world-canvas {
+  background:
+    radial-gradient(circle at 16% 8%, rgba(255, 247, 213, 0.36), rgba(255, 247, 213, 0)),
+    radial-gradient(circle at 82% 4%, rgba(177, 226, 255, 0.42), rgba(177, 226, 255, 0)),
+    linear-gradient(180deg, rgba(147, 210, 255, 0.95), rgba(110, 188, 242, 0.96));
+}
+
+.world-view,
+.world-view.active {
+  min-height: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
+.world-main-card,
+.card.world-main-card {
+  position: relative;
+  min-height: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#world-canvas,
+.world-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border-radius: 0;
+  border: none;
+}
+
+.world-canvas canvas {
+  image-rendering: auto;
+  filter: saturate(1.18) contrast(1.06) brightness(1.03);
+}
+
+.world-status .badge,
+.world-overview-chip {
+  border: 2px solid rgba(146, 96, 44, 0.56);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 236, 0.85),
+    0 5px 10px rgba(86, 53, 23, 0.18);
+}
+
+.world-overview-chip {
+  max-width: min(100%, 280px);
+}
+
+.world-action-btn {
+  min-width: 82px;
+  min-height: 38px;
+}
+
+#world-zone-hint {
+  border: 2px solid rgba(244, 215, 160, 0.56);
+  background:
+    linear-gradient(180deg, rgba(41, 67, 94, 0.9), rgba(28, 50, 76, 0.9)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 236, 197, 0.08) 0,
+      rgba(255, 236, 197, 0.08) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+  color: #f8ecd0;
+}
+
+@media (max-width: 430px) {
+  .world-overview-chip {
+    max-width: min(100%, 232px);
+    font-size: 11px;
+  }
+}

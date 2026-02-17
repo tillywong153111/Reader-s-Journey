@@ -221,11 +221,20 @@ async function captureProfileShots(page, profile, outputDir) {
   await page.waitForTimeout(420);
   await closeAllSheets(page);
 
+  const screenshotSheetOrShell = async (path) => {
+    const sheet = page.locator(".sheet-card").first();
+    if (await sheet.count()) {
+      await sheet.screenshot({ path });
+      return;
+    }
+    await page.locator(".shell").screenshot({ path });
+  };
+
   for (const view of views) {
     if (view === "entry") {
       await openWorldSheet(page, "entry", "#sheet-world-entry-add-btn");
       const path = resolve(outputDir, `${profile.id}-${view}.png`);
-      await page.locator(".shell").screenshot({ path });
+      await screenshotSheetOrShell(path);
       await closeAllSheets(page);
       continue;
     }
@@ -233,7 +242,7 @@ async function captureProfileShots(page, profile, outputDir) {
     if (view === "panel") {
       await openWorldSheet(page, "panel", "#sheet-world-panel-attrs-btn");
       const path = resolve(outputDir, `${profile.id}-${view}.png`);
-      await page.locator(".shell").screenshot({ path });
+      await screenshotSheetOrShell(path);
       await closeAllSheets(page);
       continue;
     }
@@ -241,7 +250,7 @@ async function captureProfileShots(page, profile, outputDir) {
     if (view === "share") {
       await openWorldSheet(page, "share", "#sheet-share-copy-btn");
       const path = resolve(outputDir, `${profile.id}-${view}.png`);
-      await page.locator(".shell").screenshot({ path });
+      await screenshotSheetOrShell(path);
       await closeAllSheets(page);
       continue;
     }
@@ -249,7 +258,7 @@ async function captureProfileShots(page, profile, outputDir) {
     if (view === "settings") {
       await openWorldSheet(page, "settings", "#sheet-world-settings-bgm-toggle-btn");
       const path = resolve(outputDir, `${profile.id}-${view}.png`);
-      await page.locator(".shell").screenshot({ path });
+      await screenshotSheetOrShell(path);
       await closeAllSheets(page);
       continue;
     }
