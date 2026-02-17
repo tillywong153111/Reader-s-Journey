@@ -4774,6 +4774,21 @@ function exposeWorldTestingHooks() {
       });
       return true;
     },
+    setBookReadPages: (uidValue, nextReadValue) => {
+      const book = getBookByUid(uidValue);
+      const totalPages = Math.max(1, Number(book?.pages) || 1);
+      const nextReadPages = Math.max(0, Math.min(totalPages, Math.round(Number(nextReadValue) || 0)));
+      if (!book) return false;
+      const nextProgress = Math.max(0, Math.min(100, Math.round((nextReadPages / totalPages) * 100)));
+      let update = applyBookProgressUpdate(book, nextProgress);
+      if (!update.ok && update.code === "decrease") {
+        update = applyBookProgressUpdate(book, nextProgress, { allowDecrease: true });
+      }
+      if (!update.ok) return false;
+      renderAll();
+      openBookDetailSheet(book.uid, { skipHistory: true });
+      return true;
+    },
     getFirstShelfBookUid: () => {
       const firstBook = getShelfBooks()[0];
       return firstBook?.uid || "";

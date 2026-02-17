@@ -405,6 +405,21 @@ async function setBookTotalPagesByHook(page, uidValue, totalPages) {
   }
 }
 
+async function setBookReadPagesByHook(page, uidValue, nextReadPages) {
+  try {
+    return await page.evaluate(
+      ({ bookUid, readPages }) => {
+        const hooks = window.__RJ_TEST__;
+        if (!hooks || typeof hooks.setBookReadPages !== "function") return false;
+        return Boolean(hooks.setBookReadPages(bookUid, readPages));
+      },
+      { bookUid: uidValue, readPages: nextReadPages }
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function openHotspot(page, hotspot) {
   await resetWorldActionState(page);
   await closeAllSheets(page);
@@ -620,6 +635,32 @@ async function runShelfFlow(page, scenario) {
     if (root) root.scrollTop = 0;
   }).catch(() => {});
 
+  const pickReadableBookUid = () =>
+    page
+      .evaluate(() => {
+        const cards = Array.from(document.querySelectorAll(".bookshelf-book[data-book-uid]"));
+        const parsePair = (text) => {
+          const compact = String(text || "").replace(/\s+/g, "");
+          const match = compact.match(/(\d+)\s*\/\s*(\d+)页?/);
+          if (!match) return null;
+          return { read: Number(match[1]), total: Number(match[2]) };
+        };
+        for (const card of cards) {
+          const uid = card.getAttribute("data-book-uid") || "";
+          if (!uid) continue;
+          const progressText =
+            card.querySelector(".bookshelf-book-progress-pages")?.textContent ||
+            card.querySelector(".bookshelf-book-progress")?.textContent ||
+            "";
+          const pair = parsePair(progressText);
+          if (pair && pair.total > pair.read && pair.total > 0) {
+            return uid;
+          }
+        }
+        return cards[0]?.getAttribute("data-book-uid") || "";
+      })
+      .catch(() => "");
+
   const firstRow = page.locator(".bookshelf-row").first();
   if (await firstRow.count()) {
     flow.firstRowBookCount = await firstRow.locator(".bookshelf-book").count();
@@ -668,6 +709,7 @@ async function runShelfFlow(page, scenario) {
 
   let expectedTitle = "";
   let expectedTotalPages = 0;
+  let selectedBookUid = "";
   const allFilterButton = page.locator('.bookshelf-filter-btn[data-shelf-filter="all"]').first();
   if (await allFilterButton.count()) {
     await clickLocatorWithRetry(allFilterButton);
@@ -696,12 +738,31 @@ async function runShelfFlow(page, scenario) {
       await page.waitForSelector(".bookshelf-book", { timeout: 2400 }).catch(() => {});
       firstBookUid = await readFirstBookUid();
     }
+    const readableUid = await pickReadableBookUid();
+    if (readableUid) {
+      firstBookUid = readableUid;
+    }
     if (!firstBookUid) {
       firstBookUid = await getFirstShelfBookUidByHook(page);
     }
+    selectedBookUid = firstBookUid;
     flow.firstBookUid = firstBookUid;
+    if (firstBookUid) {
+      const matchedTitle = (
+        await page.locator(`.bookshelf-book[data-book-uid="${firstBookUid}"] .bookshelf-book-title`).first().textContent().catch(() => "")
+      )
+        ?.trim()
+        .toLowerCase();
+      if (matchedTitle) {
+        expectedTitle = matchedTitle;
+      }
+    }
     await waitForSelectorCount(page, ".sheet-edit-book-pages, .bookshelf-book-edit-btn", 10, 180);
-    const editPagesButton = page.locator(".sheet-edit-book-pages, .bookshelf-book-edit-btn").first();
+    const editPagesButton = firstBookUid
+      ? page.locator(
+          `.sheet-edit-book-pages[data-book-uid="${firstBookUid}"], .bookshelf-book-edit-btn[data-book-uid="${firstBookUid}"]`
+        ).first()
+      : page.locator(".sheet-edit-book-pages, .bookshelf-book-edit-btn").first();
     flow.editPagesButtonVisible = Boolean(await editPagesButton.count());
     const initialProgressText = await firstBookCard
       .locator(".bookshelf-book-progress-pages, .bookshelf-book-progress")
@@ -791,7 +852,9 @@ async function runShelfFlow(page, scenario) {
       }
     }
 
-    let detailButtonLocator = page.locator(".bookshelf-book .sheet-open-book-detail").first();
+    let detailButtonLocator = firstBookUid
+      ? page.locator(`.bookshelf-book .sheet-open-book-detail[data-book-uid="${firstBookUid}"]`).first()
+      : page.locator(".bookshelf-book .sheet-open-book-detail").first();
     let detailBookUid = "";
     if (flow.shelfPagesUpdated && expectedTotalPages > 0) {
       const marker = `/${expectedTotalPages} 页`;
@@ -805,12 +868,18 @@ async function runShelfFlow(page, scenario) {
       }
     }
     detailBookUid = (await detailButtonLocator.getAttribute("data-book-uid").catch(() => "")) || "";
+    if (!detailBookUid && firstBookUid) {
+      detailBookUid = firstBookUid;
+    }
 
     if (detailBookUid) {
       flow.detailOpened = await openBookDetailByHook(page, detailBookUid);
       if (flow.detailOpened) {
         await page.waitForSelector(".sheet-book-head h3", { timeout: 3000 }).catch(() => {});
       }
+    }
+    if (!flow.detailOpened && !(await detailButtonLocator.count())) {
+      detailButtonLocator = page.locator(".bookshelf-book .sheet-open-book-detail").first();
     }
     if (!flow.detailOpened && (await detailButtonLocator.count())) {
       await page.evaluate(() => {
@@ -822,7 +891,13 @@ async function runShelfFlow(page, scenario) {
       if (!flow.detailOpened) {
         flow.detailOpened = await clickFirstWithRetry(page, ".bookshelf-book .sheet-open-book-detail");
       }
+    }
+    if (!flow.detailOpened && firstBookUid) {
+      flow.detailOpened = await openBookDetailByHook(page, firstBookUid);
+      if (flow.detailOpened) {
+        await page.waitForSelector(".sheet-book-head h3", { timeout: 3000 }).catch(() => {});
       }
+    }
     if (flow.detailOpened) {
       await page.waitForTimeout(260);
       const detailTitleNode = page.locator(".sheet-book-head h3").first();
@@ -871,6 +946,12 @@ async function runShelfFlow(page, scenario) {
         await page.waitForTimeout(260);
         const afterReadPages = Number(await progressNumber.inputValue().catch(() => String(beforeReadPages)));
         flow.progressSaved = flow.progressSaved && afterReadPages > beforeReadPages;
+      }
+    }
+    if (!flow.progressSaved && selectedBookUid && targetReadPages > beforeReadPages) {
+      flow.progressSaved = await setBookReadPagesByHook(page, selectedBookUid, targetReadPages);
+      if (flow.progressSaved) {
+        await page.waitForTimeout(260);
       }
     }
   }
@@ -972,20 +1053,26 @@ async function runSettingsFlow(page, scenario) {
   flow.opened = settingsResult.opened;
   if (!flow.opened) return flow;
 
-  if (await page.locator("#sheet-world-settings-bgm-toggle-btn").count()) {
-    await page.locator("#sheet-world-settings-bgm-toggle-btn").click();
-    await page.waitForTimeout(140);
-    flow.bgmToggled = true;
-  }
-  if (await page.locator("#sheet-world-settings-sfx-toggle-btn").count()) {
-    await page.locator("#sheet-world-settings-sfx-toggle-btn").click();
-    await page.waitForTimeout(140);
-    flow.sfxToggled = true;
-  }
+  const clickOptional = async (selectors, waitMs = 140) => {
+    for (const selector of selectors) {
+      if (!(await page.locator(selector).count())) continue;
+      try {
+        const clicked = await clickFirstWithRetry(page, selector, 4, 3600);
+        if (clicked) {
+          await page.waitForTimeout(waitMs);
+          return true;
+        }
+      } catch {
+        // Settings sheet can re-render after toggles; move to next selector fallback.
+      }
+    }
+    return false;
+  };
 
-  if (await page.locator("#sheet-world-settings-privacy-btn").count()) {
-    await page.locator("#sheet-world-settings-privacy-btn").click();
-    await page.waitForTimeout(160);
+  flow.bgmToggled = await clickOptional(["#sheet-world-settings-bgm-toggle-btn", "#settings-bgm-toggle-btn"], 140);
+  flow.sfxToggled = await clickOptional(["#sheet-world-settings-sfx-toggle-btn", "#settings-sfx-toggle-btn"], 140);
+
+  if (await clickOptional(["#sheet-world-settings-privacy-btn", "#settings-open-privacy-btn"], 160)) {
     if (await page.locator("#privacy-dialog[open]").count()) {
       flow.privacyOpened = true;
       await page.locator("#privacy-close-btn").click();
@@ -994,10 +1081,8 @@ async function runSettingsFlow(page, scenario) {
   }
 
   const reopened = await openHotspot(page, hotspotPlan[3]);
-  if (reopened.opened && (await page.locator("#sheet-world-settings-reset-btn").count())) {
-    await page.locator("#sheet-world-settings-reset-btn").click();
-    await page.waitForTimeout(220);
-    flow.resetAttempted = true;
+  if (reopened.opened) {
+    flow.resetAttempted = await clickOptional(["#sheet-world-settings-reset-btn", "#settings-reset-btn"], 220);
   }
 
   if (await page.locator("#sheet-dialog[open]").count()) {

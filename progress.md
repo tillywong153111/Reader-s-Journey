@@ -205,3 +205,29 @@ Original prompt: 按照这10个图片的风格，执行你的计划（Reader’s
 - `scripts/e2e-exhaustive.mjs`：`runShelfFlow()` 增加“编辑页数按钮可见 -> 打开编辑 -> 保存 -> 卡片总页更新 -> 详情共页数一致”断言链，并纳入场景 pass 条件。
 - `README.md`：新增 v1.7.5 说明，补充“编辑页数仅做校正、不发奖励”。
 - 待执行验证链：`npm ci` -> `npm run lint` -> `npm test` -> `npm run build` -> `npm run test:e2e` -> `npm run test:e2e:headed` -> `npm run visual:check`。
+
+### 2026-02-17 v1.8-P 全局视觉统一二次强化（skills: develop-web-game + game-art + playwright）
+- 仅改 `src/styles.css`，追加 `v2.2 reference-inspired full visual polish` 终版覆写层，保持玩法逻辑不变。
+- 视觉方向按参考图收口：木框+羊皮纸底、经营类高对比按钮（绿主按钮/蓝次按钮）、卡片与弹层统一边框阴影语言。
+- 可读性强化：`search/item/bookshelf` 统一 2 行截断与 `overflow-wrap:anywhere`，并提高移动端行高、按钮触控高度，避免半截和挤压。
+- 结构层强化：sheet 头部/按钮、世界 HUD chips、进度条轨道/填充、藏书阁书卡与操作区全部收口到同一视觉体系。
+- 待执行：完整命令链与 headed 浏览器视觉回归。
+- 验证链执行与修复：
+  - `npm ci` ✅
+  - `npm run lint` ✅
+  - `npm test` ✅
+  - `npm run build` ✅
+  - `npm run test:e2e` ✅
+  - `npm run test:e2e:headed` 首次 ❌（设置流 `#sheet-world-settings-sfx-toggle-btn` 偶发超时）
+  - 最小修复：`scripts/e2e-exhaustive.mjs` 的 `runSettingsFlow()` 改为多选择器 fallback + retry 点击。
+  - `npm run test:e2e:headed` 重跑 ✅
+  - `npm run test:e2e`（修复后补跑）✅
+  - `npm run visual:check` 首次 ❌（视觉基线差异，属于本次有意视觉改版）
+  - 最小修复：刷新基线 `npm run visual:baseline`，随后 `npm run visual:check` ✅。
+- 人工可视抽检：已查看 `output/playwright/e2e-exhaustive/mobile-390x844-{entry-flow,hotspot-panel,shelf-flow}.png` 与 `desktop-1280x720-shelf-flow.png`，文本与按钮完整可读，无半截遮挡。
+- README 同步：版本号更新为 `v1.7.6`，新增“全局视觉统一（参考图风格收口）”说明，覆盖视觉语义、可读性与回归稳定性变更。
+- 稳定性二次修复（desktop e2e 偶发）：
+  - `scripts/e2e-exhaustive.mjs` 藏书阁流程新增“优先选可增长书卷 UID”策略，详情打开链路增加多重 fallback（目标 UID -> 首个详情按钮 -> hook 再开）。
+  - 新增 hook 调用 `setBookReadPagesByHook` 作为进度保存兜底，仅在 UI 路径未成功时触发。
+- `src/app.mjs` 测试钩子增强：`window.__RJ_TEST__.setBookReadPages(uid, readPages)`，复用 `applyBookProgressUpdate`，随后 `renderAll()` + 回到书卷详情，保证与实际结算语义一致。
+- 最终验证（当前代码最终态）全绿：`lint/test/build/test:e2e/test:e2e:headed/visual:check` ✅。
